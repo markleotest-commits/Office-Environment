@@ -213,6 +213,7 @@ Open the built app in Chrome. Check that all three agents appear and move; orbit
 ### Troubleshooting
 
 - **Connection refused:** keep Termux's server running. Check that Chrome uses exactly `http://127.0.0.1:4173`. Android may stop Termux in the background; exempt Termux from battery restrictions or restart the server.
+- **Blank page / startup error:** an HTML startup screen now remains visible if the main JavaScript fails to load or run. Tap **Repair app cache** to remove only Fieldwork's offline cache and service-worker registration, preserving world saves and downloaded AI weights. If the old version is still blank, try Chrome Incognito at the same URL to check for a cache issue without deleting your saved world. Update Chrome; rebuild in Termux with `npm run build`, then restart `npm run start:ai`. If it persists, report the startup message and the last Termux output. A screenshot alone cannot establish the cause.
 - **Blank scene / WebGL message:** update Chrome, close other graphics-heavy tabs, and reload. WebGL is required; GPU/context failures show an explanatory message.
 - **Build fails:** check `node --version` meets the requirement, run `pkg upgrade`, then `npm ci --include=dev` again. npm install needs network access; the built app does not.
 - **Missing save:** use the same browser and origin. Incognito, cleared site data, or blocked storage prevent durable saves. The app reports storage errors and continues running.

@@ -189,3 +189,5 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
       );
   });
 }
+// Dismiss the HTML startup screen only once the shell and controls are ready.
+window.dispatchEvent(new Event('fieldwork:ready'));

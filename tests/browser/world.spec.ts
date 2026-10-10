@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { PerspectiveCamera, Vector3 } from 'three';
+import { Simulation } from '../../src/simulation';
 const storageKey = 'fieldwork.world.v1';
 async function panel(page: any, name: string, mobile: boolean) {
   if (mobile) await page.locator(`button[data-tab="${name}"]`).click();
@@ -15,6 +16,7 @@ test('render, selection, movement, controls, storage, and offline reload', async
   page.on('request', (r) => requests.push(r.url()));
   await page.goto('/');
   await expect(page.locator('#viewport canvas')).toBeVisible();
+  await expect(page.locator('#startup')).toHaveCount(0);
   await expect(page.locator('#world-error')).toBeHidden();
   await expect(page.locator('.agent-label')).toHaveCount(3);
   await expect(page.locator('#fps')).toContainText('FPS');
@@ -285,4 +287,73 @@ test('model settings prevent unavailable GPT or unloaded local models from being
   await expect(page.locator('#qwen-status')).toContainText(
     'does not provide WebGPU',
   );
+});
+
+test('startup reports a missing script and repair preserves world saves and model caches', async ({
+  page,
+}) => {
+  const mainScript = '**/assets/index-*.js';
+  await page.route(mainScript, (route) =>
+    route.fulfill({ status: 404, contentType: 'text/javascript', body: '' }),
+  );
+  await page.goto('/');
+  await expect(page.locator('#startup-title')).toHaveText(
+    'Fieldwork could not open',
+  );
+  await expect(page.locator('#startup-detail')).toContainText(
+    'app file could not load',
+  );
+  const saved = new Simulation().snapshot();
+  saved.paused = true;
+  saved.elapsed = 123;
+  const names = await page.evaluate(
+    async ({ saved, key }) => {
+      localStorage.setItem(key, JSON.stringify(saved));
+      const oldApp = `fieldwork:${location.origin}/:stale-test`;
+      const models = 'webllm-model-test';
+      for (const name of [oldApp, models]) {
+        const cache = await caches.open(name);
+        await cache.put('/test-cache-marker', new Response('keep weights'));
+      }
+      return { oldApp, models };
+    },
+    { saved, key: storageKey },
+  );
+  await page.unroute(mainScript);
+  await Promise.all([
+    page.waitForEvent('domcontentloaded'),
+    page.getByRole('button', { name: 'Repair app cache' }).click(),
+  ]);
+  await expect(page.locator('#viewport canvas')).toBeVisible();
+  await expect(page.locator('#startup')).toHaveCount(0);
+  const result = await page.evaluate(
+    async (key) => ({
+      saved: JSON.parse(localStorage.getItem(key)!),
+      caches: await caches.keys(),
+    }),
+    storageKey,
+  );
+  expect(result.saved.elapsed).toBe(123);
+  expect(result.saved.paused).toBe(true);
+  expect(result.caches).not.toContain(names.oldApp);
+  expect(result.caches).toContain(names.models);
+});
+
+test('startup reports unsupported or broken JavaScript instead of a blank page', async ({
+  page,
+}) => {
+  await page.route('**/assets/index-*.js', (route) =>
+    route.fulfill({
+      contentType: 'text/javascript',
+      body: 'this is intentionally invalid JavaScript @',
+    }),
+  );
+  await page.goto('/');
+  await expect(page.locator('#startup-title')).toHaveText(
+    'Fieldwork could not open',
+  );
+  await expect(page.locator('#startup-detail')).not.toBeEmpty();
+  await expect(
+    page.getByRole('button', { name: 'Repair app cache' }),
+  ).toBeVisible();
 });

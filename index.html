@@ -16,8 +16,159 @@
     <title>Fieldwork — AI World</title>
   </head>
   <body>
+    <section id="startup" role="status" aria-live="polite">
+      <h1 id="startup-title">Opening Fieldwork…</h1>
+      <p id="startup-detail">
+        Loading the 3D world. Keep the Termux server running.
+      </p>
+      <noscript
+        ><p>
+          JavaScript is disabled. Enable JavaScript for this site in Chrome to
+          open the world.
+        </p></noscript
+      >
+      <div id="startup-actions" hidden>
+        <button id="startup-reload" type="button">Try again</button>
+        <button id="startup-repair" type="button">Repair app cache</button>
+        <p>
+          Repair removes this app's offline cache and reloads. Your saved world
+          and AI model weights stay on this device.
+        </p>
+        <p>
+          If it still fails, copy the message above and the last lines from
+          Termux. Check that Chrome is up to date.
+        </p>
+      </div>
+    </section>
+    <style id="startup-style">
+      #startup {
+        box-sizing: border-box;
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        overflow: auto;
+        padding: max(32px, env(safe-area-inset-top)) 24px;
+        background: #edf1e8;
+        color: #20392c;
+        font:
+          16px/1.6 system-ui,
+          sans-serif;
+      }
+      #startup h1 {
+        font-size: 26px;
+        line-height: 1.3;
+      }
+      #startup p {
+        max-width: 600px;
+        overflow-wrap: anywhere;
+      }
+      #startup button {
+        margin: 8px 8px 8px 0;
+        padding: 12px 16px;
+        border: 1px solid #20392c;
+        border-radius: 8px;
+        background: white;
+        color: #20392c;
+        font: inherit;
+      }
+    </style>
     <div id="app"></div>
-    <noscript>This world needs JavaScript enabled in your browser.</noscript>
+    <script>
+      (function () {
+        var started = false;
+        var title = document.getElementById('startup-title');
+        var detail = document.getElementById('startup-detail');
+        var actions = document.getElementById('startup-actions');
+        function failed(message) {
+          if (started) return;
+          title.textContent = 'Fieldwork could not open';
+          detail.textContent = message;
+          actions.hidden = false;
+        }
+        function onError(event) {
+          var target = event.target;
+          if (
+            target &&
+            (target.tagName === 'SCRIPT' || target.tagName === 'LINK')
+          ) {
+            failed(
+              'An app file could not load. Try Repair app cache. If it persists, rebuild the app in Termux.',
+            );
+          } else {
+            failed(
+              event.message ||
+                'JavaScript could not start the world. Update Chrome and try again.',
+            );
+          }
+        }
+        function onRejected(event) {
+          failed(
+            (event.reason && event.reason.message) ||
+              'The world could not finish starting. Try again.',
+          );
+        }
+        window.addEventListener('error', onError, true);
+        window.addEventListener('unhandledrejection', onRejected);
+        var timer = setTimeout(function () {
+          failed(
+            'The world has not finished starting. Check the Termux server, then try Repair app cache.',
+          );
+        }, 20000);
+        window.addEventListener(
+          'fieldwork:ready',
+          function () {
+            started = true;
+            clearTimeout(timer);
+            window.removeEventListener('error', onError, true);
+            window.removeEventListener('unhandledrejection', onRejected);
+            document.getElementById('startup').remove();
+            document.getElementById('startup-style').remove();
+          },
+          { once: true },
+        );
+        document.getElementById('startup-reload').onclick = function () {
+          location.reload();
+        };
+        document.getElementById('startup-repair').onclick = async function () {
+          this.disabled = true;
+          detail.textContent = 'Repairing app cache…';
+          var scope = new URL('./', location.href).href;
+          try {
+            if ('serviceWorker' in navigator) {
+              var registrations =
+                await navigator.serviceWorker.getRegistrations();
+              await Promise.all(
+                registrations
+                  .filter(function (r) {
+                    return r.scope === scope;
+                  })
+                  .map(function (r) {
+                    return r.unregister();
+                  }),
+              );
+            }
+            if ('caches' in window) {
+              var names = await caches.keys();
+              await Promise.all(
+                names
+                  .filter(function (name) {
+                    return name.indexOf('fieldwork:' + scope + ':') === 0;
+                  })
+                  .map(function (name) {
+                    return caches.delete(name);
+                  }),
+              );
+            }
+            location.reload();
+          } catch (error) {
+            this.disabled = false;
+            failed(
+              'Cache repair could not finish. Close this tab, reopen the app, and check the Termux server.',
+            );
+          }
+        };
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -226,12 +226,23 @@ test('model picker routes GPT decisions through the local plan bridge and labels
         return;
       }
       response = { action: { type: 'OBSERVE' } };
+    } else if (url.pathname.endsWith('/sign-in')) {
+      await route.abort('connectionrefused');
+      return;
     } else response = { ok: true };
     await route.fulfill({ json: response });
   });
   await page.goto('/');
   await page.locator('[data-speed="4"]').click();
   await page.getByRole('button', { name: 'Configure AI models' }).click();
+  await expect(page.locator('#plan-status')).toContainText(
+    'Using ChatGPT plan',
+  );
+  await page.getByRole('button', { name: 'Continue with ChatGPT' }).click();
+  await expect(page.locator('#plan-status')).toContainText(
+    'Cannot reach the AI server on this phone',
+  );
+  await page.getByRole('button', { name: 'Check connection' }).click();
   await expect(page.locator('#plan-status')).toContainText(
     'Using ChatGPT plan',
   );
@@ -269,6 +280,9 @@ test('model settings prevent unavailable GPT or unloaded local models from being
   isMobile,
 }) => {
   if (isMobile) await page.setViewportSize({ width: 320, height: 740 });
+  await page.route('**/api/session', (route) =>
+    route.abort('connectionrefused'),
+  );
   await page.goto('/');
   await expect(
     page.getByRole('button', { name: 'Configure AI models' }),
@@ -279,6 +293,11 @@ test('model settings prevent unavailable GPT or unloaded local models from being
     ),
   ).toBeTruthy();
   await page.getByRole('button', { name: 'Configure AI models' }).click();
+  await expect(page.locator('#plan-status')).toContainText(
+    'Cannot reach the AI server on this phone',
+  );
+  await page.unroute('**/api/session');
+  await page.getByRole('button', { name: 'Check connection' }).click();
   await expect(
     page
       .locator('#models-dialog')

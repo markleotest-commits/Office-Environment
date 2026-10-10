@@ -59,13 +59,13 @@ export class ModelControls {
       this.dialog.close(),
     );
     this.el('plan-sign-in').addEventListener('click', () =>
-      this.action(async () => {
+      this.planAction(async () => {
         await client.signIn(this.accountSelect().value);
       }),
     );
     this.el('plan-refresh').addEventListener('click', () => this.refresh());
     this.el('plan-account').addEventListener('change', () =>
-      this.action(async () => {
+      this.planAction(async () => {
         const id = this.accountSelect().value;
         if (id === 'new') return;
         await client.request('select', { accountId: id });
@@ -73,7 +73,7 @@ export class ModelControls {
       }),
     );
     this.el('plan-sign-out').addEventListener('click', () =>
-      this.action(async () => {
+      this.planAction(async () => {
         for (const a of sim.agents)
           if (sim.providers.providerFor(a.id).id === 'gpt61')
             sim.setProvider(a.id, 'rules');
@@ -152,6 +152,17 @@ export class ModelControls {
       this.ui.toast(
         error instanceof Error ? error.message : 'Model operation failed',
       );
+    }
+  }
+  private async planAction(task: () => Promise<void>) {
+    try {
+      await task();
+    } catch (error) {
+      this.planStatus = null;
+      this.client.available = false;
+      this.el('plan-status').textContent =
+        error instanceof Error ? error.message : 'ChatGPT connection failed';
+      this.refreshApply();
     }
   }
   private syncChoices() {

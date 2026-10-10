@@ -25,8 +25,19 @@ export type PlanStatus = {
 export class PlanClient {
   private csrf = '';
   available = false;
+  private async fetchLocal(url: URL, options: RequestInit) {
+    try {
+      return await fetch(url, options);
+    } catch (error) {
+      if (error instanceof TypeError)
+        throw new Error(
+          'Cannot reach the AI server on this phone. In Termux, run cd ~/Office-Environment && npm run start:ai and keep it running, then tap Check connection.',
+        );
+      throw error;
+    }
+  }
   private async session() {
-    const res = await fetch(new URL('./api/session', location.href), {
+    const res = await this.fetchLocal(new URL('./api/session', location.href), {
       cache: 'no-store',
     });
     if (
@@ -42,16 +53,23 @@ export class PlanClient {
   }
   async request(path: string, data?: unknown, signal?: AbortSignal) {
     if (!this.csrf) await this.session();
-    const res = await fetch(new URL(`./api/plan/${path}`, location.href), {
-      method: data === undefined ? 'GET' : 'POST',
-      headers: {
-        'X-Fieldwork-CSRF': this.csrf,
-        ...(data === undefined ? {} : { 'Content-Type': 'application/json' }),
+    const res = await this.fetchLocal(
+      new URL(`./api/plan/${path}`, location.href),
+      {
+        method: data === undefined ? 'GET' : 'POST',
+        headers: {
+          'X-Fieldwork-CSRF': this.csrf,
+          ...(data === undefined ? {} : { 'Content-Type': 'application/json' }),
+        },
+        body: data === undefined ? undefined : JSON.stringify(data),
+        signal,
+        cache: 'no-store',
       },
-      body: data === undefined ? undefined : JSON.stringify(data),
-      signal,
-      cache: 'no-store',
-    });
+    );
+    if (!res.headers.get('content-type')?.includes('application/json'))
+      throw new Error(
+        'The AI bridge is unavailable. Use npm run start:ai instead of npm run preview, then reopen this page.',
+      );
     const result = await res.json();
     if (!res.ok) {
       if (res.status === 401) this.csrf = '';

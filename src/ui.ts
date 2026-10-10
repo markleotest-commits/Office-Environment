@@ -27,7 +27,7 @@ export function shell(app: HTMLElement) {
     <header class="topbar">
       <a class="brand" href="./" aria-label="Fieldwork home"><span class="brand-mark">${icon('leaf')}</span><span>fieldwork<span class="brand-dot">.</span></span></a>
       <div class="header-center"><span class="live-dot"></span> A LITTLE WORLD, ALWAYS IN MOTION</div>
-      <div class="header-end"><button id="models" class="local-badge" aria-label="Configure AI models">${icon('chat')} AI models</button><button id="help" class="icon-button" aria-label="Controls and help">${icon('help')}</button></div>
+      <div class="header-end"><button id="models" class="models-button" aria-label="Configure AI models">${icon('chat')} AI models</button><button id="help" class="icon-button" aria-label="Controls and help">${icon('help')}</button></div>
     </header>
     <main class="workspace">
       <aside class="sidebar" aria-label="Agent controls">

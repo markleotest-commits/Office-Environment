@@ -196,6 +196,7 @@ test('model picker routes GPT decisions through the local plan bridge and labels
   page,
   isMobile,
 }) => {
+  if (isMobile) await page.setViewportSize({ width: 360, height: 800 });
   let decisions = 0,
     fail = false;
   await page.route('**/api/**', async (route) => {
@@ -265,9 +266,28 @@ test('model picker routes GPT decisions through the local plan bridge and labels
 
 test('model settings prevent unavailable GPT or unloaded local models from being assigned', async ({
   page,
+  isMobile,
 }) => {
+  if (isMobile) await page.setViewportSize({ width: 320, height: 740 });
   await page.goto('/');
+  await expect(
+    page.getByRole('button', { name: 'Configure AI models' }),
+  ).toBeInViewport();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
   await page.getByRole('button', { name: 'Configure AI models' }).click();
+  await expect(
+    page
+      .locator('#models-dialog')
+      .getByRole('heading', { name: 'GPT‑6.1‑sol', exact: true }),
+  ).toBeVisible();
+  if (isMobile)
+    await page.screenshot({
+      path: 'test-results/narrow-phone-model-settings.png',
+    });
   await expect(page.locator('#plan-status')).toContainText(
     'Start the AI server',
   );

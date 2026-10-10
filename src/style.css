@@ -132,7 +132,7 @@ button:disabled {
   align-items: center;
   gap: 17px;
 }
-.local-badge {
+.models-button {
   font-size: 11px;
   border: 1px solid var(--line);
   padding: 8px 12px;
@@ -141,8 +141,11 @@ button:disabled {
   align-items: center;
   gap: 7px;
   color: #677763;
+  min-height: 44px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.local-badge svg {
+.models-button svg {
   width: 14px;
   height: 14px;
 }
@@ -1015,9 +1018,9 @@ dialog .dialog-note {
   .header-center {
     display: none;
   }
-  .local-badge {
-    font-size: 9px;
-    padding: 6px 8px;
+  .models-button {
+    font-size: 11px;
+    padding: 8px;
   }
   .header-end {
     gap: 8px;
@@ -1300,8 +1303,23 @@ dialog .dialog-note {
   }
 }
 @media (max-width: 360px) {
-  .local-badge {
-    display: none;
+  .topbar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .brand {
+    font-size: 21px;
+    gap: 7px;
+  }
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+  }
+  .header-end {
+    gap: 6px;
+  }
+  .models-button {
+    font-size: 10px;
   }
   .simulation-play span {
     display: none;

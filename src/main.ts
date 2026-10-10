@@ -3,10 +3,12 @@ import { Simulation } from './simulation';
 import { Persistence } from './persistence';
 import { World } from './world';
 import { shell, UI } from './ui';
+import { registerModelProviders, ModelControls } from './model-ui';
 import { walkable } from './navigation';
 const app = document.getElementById('app')!;
 shell(app);
 const simulation = new Simulation();
+const modelProviders = registerModelProviders(simulation);
 // The getter itself can throw when storage is disabled, so defer access until inside Persistence's try/catch.
 const persistence = new Persistence({
   getItem: (key) => window.localStorage.getItem(key),
@@ -17,6 +19,17 @@ const saved = persistence.load();
 if (saved.snapshot) simulation.restore(saved.snapshot);
 const ui = new UI(simulation);
 ui.saveStatus(saved.message);
+const modelControls = new ModelControls(
+  simulation,
+  ui,
+  modelProviders.client,
+  modelProviders.local,
+);
+modelControls.onSave = () => {
+  const result = persistence.save(simulation.snapshot());
+  ui.saveStatus(result.message, result.ok);
+  return result.ok ? 'Model choices saved' : result.message;
+};
 let world: World | null = null;
 try {
   world = new World(document.getElementById('viewport')!, simulation.agents);
@@ -127,8 +140,12 @@ function frame(now: number) {
     simulation.tick(0.05);
     accumulator -= 0.05;
   }
+  // Leave GPU capacity for models while their dialog covers the world.
+  const modelsOpen = (
+    document.getElementById('models-dialog') as HTMLDialogElement
+  ).open;
   // Rendering is capped at 30 fps; logic runs at 20 Hz independently.
-  if (world && now - renderAt >= 1000 / 30 - 1) {
+  if (world && !modelsOpen && now - renderAt >= 1000 / 30 - 1) {
     world.render(simulation.agents, simulation.clock.elapsed);
     renderAt = now;
     frames++;

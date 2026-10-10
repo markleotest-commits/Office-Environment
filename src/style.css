@@ -1359,3 +1359,176 @@ dialog .dialog-note {
     transition: none !important;
   }
 }
+.provider-status {
+  font-size: 8px;
+  line-height: 1.7;
+  color: #8c977f;
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+}
+.models-dialog {
+  max-width: 680px;
+  max-height: 88dvh;
+  overflow-y: auto;
+}
+.models-dialog h2 {
+  font-size: 29px;
+}
+.models-dialog h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 9px;
+}
+.model-card {
+  border: 1px solid #dee6d4;
+  background: #f5f8ef;
+  border-radius: 10px;
+  padding: 17px;
+  margin: 16px 0;
+}
+.model-card p {
+  font-size: 11px;
+  line-height: 1.75;
+}
+.model-buttons {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.model-buttons button {
+  flex: initial;
+  min-height: 40px;
+}
+.model-account {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0;
+}
+.model-account label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 10px;
+  max-width: 70%;
+}
+.model-account a {
+  font-size: 10px;
+  color: #527643;
+  white-space: nowrap;
+}
+.models-dialog select {
+  border: 1px solid #d0dcc5;
+  padding: 10px;
+  border-radius: 6px;
+  color: #3a6044;
+  background: #fffef7;
+  font-size: 11px;
+  max-width: 100%;
+  min-width: 0;
+}
+.models-dialog .model-status {
+  display: block;
+  font-size: 10px;
+  color: #7d8f73;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  margin: 8px 0;
+}
+.local-model {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin-top: 15px;
+}
+.local-model > div {
+  flex: 1;
+  min-width: 0;
+}
+.local-model strong {
+  font-size: 11px;
+}
+.local-model .outline-button {
+  flex: initial;
+  min-width: 92px;
+  min-height: 40px;
+}
+.model-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0;
+}
+.model-roster label {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr);
+  align-items: center;
+  font-size: 12px;
+  gap: 12px;
+}
+.model-close {
+  position: absolute;
+  top: 12px;
+  right: 15px;
+  font-size: 25px;
+  min-width: 36px;
+  min-height: 36px;
+}
+.model-note {
+  font-size: 10px !important;
+}
+.models-dialog button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.models-dialog .outline-button:hover {
+  filter: brightness(0.96);
+}
+@media (max-width: 760px) {
+  .provider-status {
+    font-size: 9px;
+  }
+  .models-dialog {
+    padding: 25px 20px;
+  }
+  .models-dialog h2 {
+    font-size: 26px;
+    margin-top: 13px;
+  }
+  .models-dialog h3 {
+    font-size: 14px;
+  }
+  .model-card {
+    padding: 14px;
+  }
+  .model-card p {
+    font-size: 11px;
+  }
+  .models-dialog .model-buttons .solid-button {
+    width: 100%;
+  }
+  .model-account {
+    flex-wrap: wrap;
+  }
+  .model-account label {
+    max-width: 100%;
+    width: 100%;
+  }
+  .model-roster label {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 6px;
+  }
+  .local-model {
+    flex-wrap: wrap;
+  }
+  .local-model > div {
+    flex-basis: 100%;
+  }
+  .models-dialog select {
+    min-height: 44px;
+  }
+  .model-buttons button {
+    min-height: 44px;
+  }
+}

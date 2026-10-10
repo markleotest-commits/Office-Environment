@@ -153,10 +153,9 @@ test('model timeout and rate budget fall back to rules; per-agent routing works'
     },
   });
   router.assign('nova', 'test-model');
-  assert.equal(
-    (await router.decide(o, new AbortController().signal)).fallback,
-    true,
-  );
+  const timedOut = await router.decide(o, new AbortController().signal);
+  assert.equal(timedOut.fallback, true);
+  assert.equal(timedOut.reason, 'Provider timed out');
   assert.equal(
     (await router.decide(o, new AbortController().signal)).fallback,
     true,
@@ -184,4 +183,49 @@ test('reset discards late asynchronous decisions from the old world', async () =
   await flush();
   assert.equal(sim.agents[0].state, 'idle');
   assert.equal(sim.events.length, 1);
+});
+
+test('model assignments survive snapshots and the reported source separates models from fallback', async () => {
+  const sim = new Simulation();
+  let decisionSignal!: AbortSignal;
+  sim.providers.register({
+    id: 'gpt61',
+    label: 'GPT‑6.1‑sol',
+    mode: 'model',
+    decide: async (_, signal) => {
+      decisionSignal = signal;
+      return { type: 'OBSERVE' };
+    },
+  });
+  sim.setProvider('nova', 'gpt61');
+  sim.tick(0.05);
+  sim.setProvider('nova', 'gpt61');
+  assert.equal(decisionSignal.aborted, false);
+  await flush();
+  await flush();
+  assert.equal(sim.providers.status('nova').modelDecisions, 1);
+  assert.equal(sim.providers.status('nova').source, 'GPT‑6.1‑sol');
+  const snap = sim.snapshot();
+  assert.ok(validSnapshot(snap));
+  assert.equal(snap.providers?.nova, 'gpt61');
+  sim.setProvider('nova', 'rules');
+  sim.restore(snap);
+  assert.equal(sim.providers.providerFor('nova').id, 'gpt61');
+  sim.providers.register({
+    id: 'qwen',
+    label: 'Qwen',
+    mode: 'model',
+    decide: async () => {
+      throw new Error('Not loaded');
+    },
+  });
+  sim.setProvider('atlas', 'qwen');
+  sim.agents[1].state = 'idle';
+  sim.agents[1].remaining = 0;
+  sim.tick(0.05);
+  await flush();
+  await flush();
+  assert.equal(sim.providers.status('atlas').source, 'Local rules');
+  assert.equal(sim.providers.status('atlas').fallbacks, 1);
+  assert.equal(sim.providers.status('atlas').detail, 'Not loaded');
 });

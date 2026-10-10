@@ -27,7 +27,7 @@ export function shell(app: HTMLElement) {
     <header class="topbar">
       <a class="brand" href="./" aria-label="Fieldwork home"><span class="brand-mark">${icon('leaf')}</span><span>fieldwork<span class="brand-dot">.</span></span></a>
       <div class="header-center"><span class="live-dot"></span> A LITTLE WORLD, ALWAYS IN MOTION</div>
-      <div class="header-end"><span class="local-badge">${icon('globe')} Local sandbox</span><button id="help" class="icon-button" aria-label="Controls and help">${icon('help')}</button></div>
+      <div class="header-end"><button id="models" class="local-badge" aria-label="Configure AI models">${icon('chat')} AI models</button><button id="help" class="icon-button" aria-label="Controls and help">${icon('help')}</button></div>
     </header>
     <main class="workspace">
       <aside class="sidebar" aria-label="Agent controls">
@@ -35,12 +35,12 @@ export function shell(app: HTMLElement) {
         <div class="agent-section"><div class="section-label">THE RESIDENTS <span class="count">03</span></div><div id="agent-list"></div></div>
         <div class="selected-panel"><div class="section-label">IN FOCUS <span id="selected-role"></span></div>
           <div class="agent-heading"><span id="selected-avatar" class="avatar large"></span><div><h2 id="selected-name"></h2><span id="selected-state" class="state-badge"></span></div><button id="focus" class="icon-button" aria-label="Center camera on selected agent">${icon('focus')}</button></div>
-          <p id="latest-action" class="latest-action"></p>
+          <p id="latest-action" class="latest-action"></p><p id="provider-status" class="provider-status"></p>
           <div class="energy-row"><span>Energy</span><span id="energy-value"></span></div><div class="energy-track"><div id="energy-fill"></div></div>
           <div class="agent-actions"><button id="move" class="outline-button">${icon('arrow')} Guide agent</button><button id="say" class="outline-button">${icon('chat')} Say hello</button></div>
           <div class="memory-title">RECENT MEMORY <span id="memory-count"></span></div><ul id="memory-list" class="memory-list"></ul>
         </div>
-        <div class="sidebar-foot"><span class="tiny-dot"></span> Simulated decisions · no AI model connected</div>
+        <div class="sidebar-foot"><span class="tiny-dot"></span><span id="decision-mode">Simulated decisions · no AI model assigned</span></div>
       </aside>
       <section class="world-panel" aria-label="World simulation">
         <div id="viewport" class="viewport">
@@ -59,7 +59,7 @@ export function shell(app: HTMLElement) {
     </main>
     <nav class="mobile-tabs" aria-label="Mobile panels"><button data-tab="world" class="active">${icon('globe')} World</button><button data-tab="agents">${icon('leaf')} Agents</button><button data-tab="journal">${icon('chat')} Journal</button></nav>
     <div id="toast" class="toast" role="status"></div>
-    <dialog id="help-dialog"><button class="dialog-close icon-button" aria-label="Close help">${icon('close')}</button><div class="eyebrow">MAKE YOURSELF AT HOME</div><h2>A little room to explore.</h2><p>Drag with one finger to orbit. Use two fingers to pan or pinch to zoom. On desktop, drag to orbit, right-drag to pan, and scroll to zoom.</p><p>Tap a character or their name to select them. Use <b>Guide agent</b>, then tap a clear spot on the island. <b>Say hello</b> sends a message to residents within hearing range.</p><p>Pause or change speed any time. Your world autosaves every 10 seconds and when you leave. Save and load use this browser on this device.</p><p class="dialog-note">These agents use local rules, not language models. No API keys, accounts, or phone permissions are needed.</p><button class="solid-button dialog-close">Back to the island ${icon('arrow')}</button></dialog>
+    <dialog id="help-dialog"><button class="dialog-close icon-button" aria-label="Close help">${icon('close')}</button><div class="eyebrow">MAKE YOURSELF AT HOME</div><h2>A little room to explore.</h2><p>Drag with one finger to orbit. Use two fingers to pan or pinch to zoom. On desktop, drag to orbit, right-drag to pan, and scroll to zoom.</p><p>Tap a character or their name to select them. Use <b>Guide agent</b>, then tap a clear spot on the island. <b>Say hello</b> sends a message to residents within hearing range.</p><p>Pause or change speed any time. Your world autosaves every 10 seconds and when you leave. Save and load use this browser on this device.</p><p class="dialog-note">Agents start with local rules. Open AI models to connect GPT‑6.1‑sol using your ChatGPT plan, or load free on-device models. The agent panel reports the model behind each decision and any local fallback.</p><button class="solid-button dialog-close">Back to the island ${icon('arrow')}</button></dialog>
     <dialog id="reset-dialog"><div class="eyebrow">A FRESH START</div><h2>Reset the island?</h2><p>This replaces your saved world, including all memories and activity, with a new simulation.</p><div class="dialog-actions"><button id="reset-cancel" class="outline-button">Keep exploring</button><button id="reset-confirm" class="solid-button">Reset world</button></div></dialog>
   `;
 }
@@ -217,6 +217,21 @@ export class UI {
     set('selected-role', a.role);
     set('selected-state', a.state);
     set('latest-action', a.latestAction);
+    const report = sim.providers.status(a.id);
+    const assigned = sim.providers.providerFor(a.id);
+    set(
+      'provider-status',
+      `Assigned: ${assigned.label} · Last source: ${report.source} · ${report.detail} · ${report.modelDecisions} model decisions / ${report.fallbacks} fallbacks`,
+    );
+    const modelCount = sim.agents.filter(
+      (agent) => sim.providers.providerFor(agent.id).mode === 'model',
+    ).length;
+    set(
+      'decision-mode',
+      modelCount
+        ? `${modelCount} model assignments · fallbacks are labeled`
+        : 'Simulated decisions · no AI model assigned',
+    );
     set('energy-value', `${Math.round(a.energy)}%`);
     const avatar = document.getElementById('selected-avatar')!;
     avatar.textContent = a.name[0];

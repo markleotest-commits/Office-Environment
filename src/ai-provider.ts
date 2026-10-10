@@ -4,6 +4,7 @@ export interface AIProvider {
   readonly id: string;
   readonly label: string;
   readonly mode: 'simulated' | 'model';
+  readonly timeoutMs?: number;
   decide(observation: Observation, signal: AbortSignal): Promise<unknown>;
 }
 export class RuleBasedProvider implements AIProvider {
@@ -53,6 +54,60 @@ export class ProviderRouter {
   private assignments = new Map<string, string>();
   private budget = new Map<string, { window: number; count: number }>();
   readonly fallback = new RuleBasedProvider();
+  private reports = new Map<
+    string,
+    {
+      source: string;
+      detail: string;
+      modelDecisions: number;
+      fallbacks: number;
+    }
+  >();
+  status(agentId: string) {
+    return (
+      this.reports.get(agentId) ?? {
+        source: 'No decision yet',
+        detail: 'Ready',
+        modelDecisions: 0,
+        fallbacks: 0,
+      }
+    );
+  }
+  report(
+    agentId: string,
+    source: string,
+    detail: string,
+    model: boolean,
+    fallback: boolean,
+  ) {
+    const before = this.status(agentId);
+    this.reports.set(agentId, {
+      source,
+      detail: detail.slice(0, 160),
+      modelDecisions: before.modelDecisions + Number(model),
+      fallbacks: before.fallbacks + Number(fallback),
+    });
+  }
+  thinking(agentId: string) {
+    const before = this.status(agentId);
+    this.reports.set(agentId, {
+      ...before,
+      source: before.source,
+      detail: `Thinking with ${this.providerFor(agentId).label}…`,
+    });
+  }
+  clearReports() {
+    this.reports.clear();
+  }
+  assignmentsSnapshot() {
+    return Object.fromEntries(this.assignments);
+  }
+  restoreAssignments(assignments: Record<string, string> = {}) {
+    this.assignments.clear();
+    this.reports.clear();
+    for (const [id, provider] of Object.entries(assignments))
+      if (this.providers.has(provider)) this.assign(id, provider);
+  }
   constructor(
     private timeoutMs = 4000,
     private perMinute = 6,
@@ -75,7 +130,7 @@ export class ProviderRouter {
   async decide(
     o: Observation,
     signal: AbortSignal,
-  ): Promise<{ action: unknown; fallback: boolean }> {
+  ): Promise<{ action: unknown; fallback: boolean; reason?: string }> {
     const provider = this.providerFor(o.agentId);
     if (provider.mode === 'simulated')
       return { action: await provider.decide(o, signal), fallback: false };
@@ -83,7 +138,12 @@ export class ProviderRouter {
     const usage = this.budget.get(o.agentId);
     const count = usage?.window === window ? usage.count : 0;
     if (count >= this.perMinute)
-      return { action: await this.fallback.decide(o), fallback: true };
+      return {
+        action: await this.fallback.decide(o),
+        fallback: true,
+        reason: 'Decision budget reached',
+      };
+    this.thinking(o.agentId);
     this.budget.set(o.agentId, { window, count: count + 1 });
     const controller = new AbortController();
     const abort = () => controller.abort();
@@ -93,9 +153,9 @@ export class ProviderRouter {
     try {
       const timeout = new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
-          controller.abort();
           reject(new Error('Provider timed out'));
-        }, this.timeoutMs);
+          controller.abort();
+        }, provider.timeoutMs ?? this.timeoutMs);
       });
       const cancelled = new Promise<never>((_, reject) => {
         controller.signal.addEventListener(
@@ -113,8 +173,15 @@ export class ProviderRouter {
         ]),
         fallback: false,
       };
-    } catch {
-      return { action: await this.fallback.decide(o), fallback: true };
+    } catch (error) {
+      return {
+        action: await this.fallback.decide(o),
+        fallback: true,
+        reason:
+          error instanceof Error
+            ? error.message.slice(0, 160)
+            : 'Provider unavailable',
+      };
     } finally {
       clearTimeout(timer);
       signal.removeEventListener('abort', abort);

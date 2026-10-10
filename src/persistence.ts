@@ -29,6 +29,16 @@ export function validSnapshot(raw: unknown): raw is Snapshot {
     raw.events.length > 80
   )
     return false;
+  if (
+    raw.providers !== undefined &&
+    (!record(raw.providers) ||
+      Object.entries(raw.providers).some(
+        ([id, model]) =>
+          !initialAgents().some((a) => a.id === id) ||
+          !['rules', 'gpt61', 'qwen', 'smollm'].includes(model),
+      ))
+  )
+    return false;
   const templates = initialAgents();
   if (
     !raw.agents.every(

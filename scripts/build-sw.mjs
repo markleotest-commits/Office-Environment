@@ -26,6 +26,7 @@ self.addEventListener('activate', event => {
 });
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
+  if (url.pathname.startsWith(new URL('./api/', self.registration.scope).pathname) || url.pathname.endsWith('/auth/callback')) return;
   if (event.request.method !== 'GET' || url.origin !== self.location.origin || !url.href.startsWith(self.registration.scope)) return;
   event.respondWith(caches.open(CACHE).then(async cache => {
     if (event.request.mode === 'navigate') {

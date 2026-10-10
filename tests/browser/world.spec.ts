@@ -189,3 +189,100 @@ test('corrupt saves recover and blocked storage is reported', async ({
     'Storage unavailable',
   );
 });
+
+test('model picker routes GPT decisions through the local plan bridge and labels quota fallbacks', async ({
+  page,
+  isMobile,
+}) => {
+  let decisions = 0,
+    fail = false;
+  await page.route('**/api/**', async (route) => {
+    const url = new URL(route.request().url());
+    let response: any;
+    if (url.pathname === '/api/session')
+      response = { csrf: 'TEST_CSRF_NOT_REAL' };
+    else if (url.pathname.endsWith('/status'))
+      response = {
+        connected: true,
+        available: true,
+        verified: decisions > 0,
+        model: 'gpt-6.1-sol',
+        message: 'Using ChatGPT plan (test bridge)',
+        active: 'test-account',
+        accounts: [{ id: 'test-account', label: 'Test account' }],
+      };
+    else if (url.pathname.endsWith('/decide')) {
+      const data = route.request().postDataJSON();
+      expect(data.observation.agentId).toBe('nova');
+      decisions++;
+      if (fail) {
+        await route.fulfill({
+          status: 429,
+          json: { error: 'ChatGPT usage limit reached. Open Manage usage.' },
+        });
+        return;
+      }
+      response = { action: { type: 'OBSERVE' } };
+    } else response = { ok: true };
+    await route.fulfill({ json: response });
+  });
+  await page.goto('/');
+  await page.locator('[data-speed="4"]').click();
+  await page.getByRole('button', { name: 'Configure AI models' }).click();
+  await expect(page.locator('#plan-status')).toContainText(
+    'Using ChatGPT plan',
+  );
+  await page.getByLabel('Model for Nova').selectOption('gpt61');
+  await page.locator('#assign-models').click();
+  await page.locator('#models-close').click();
+  await expect.poll(() => decisions, { timeout: 15000 }).toBeGreaterThan(0);
+  await panel(page, 'agents', isMobile);
+  await expect(page.locator('#provider-status')).toContainText(
+    'Last source: GPT‑6.1‑sol',
+  );
+  await expect(page.locator('#provider-status')).toContainText(
+    /[1-6] model decisions/,
+  );
+  fail = true;
+  await expect(page.locator('#provider-status')).toContainText(
+    'Last source: Local rules',
+    { timeout: 15000 },
+  );
+  await expect(page.locator('#provider-status')).toContainText(
+    'ChatGPT usage limit',
+  );
+  await panel(page, 'world', isMobile);
+  await page.locator('#save').click();
+  expect(
+    await page.evaluate(
+      () =>
+        JSON.parse(localStorage.getItem('fieldwork.world.v1')!).providers.nova,
+    ),
+  ).toBe('gpt61');
+});
+
+test('model settings prevent unavailable GPT or unloaded local models from being assigned', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Configure AI models' }).click();
+  await expect(page.locator('#plan-status')).toContainText(
+    'Start the AI server',
+  );
+  await page.getByLabel('Model for Nova').selectOption('gpt61');
+  await expect(page.locator('#assign-models')).toBeDisabled();
+  await page.getByLabel('Model for Nova').selectOption('qwen');
+  await expect(page.locator('#assign-models')).toBeDisabled();
+  await page.getByLabel('Model for Nova').selectOption('rules');
+  await expect(page.locator('#assign-models')).toBeEnabled();
+  await page.evaluate(() =>
+    Object.defineProperty(navigator, 'gpu', {
+      value: undefined,
+      configurable: true,
+    }),
+  );
+  await page.locator('#load-qwen').click();
+  await expect(page.locator('#qwen-status')).toContainText(
+    'does not provide WebGPU',
+  );
+});

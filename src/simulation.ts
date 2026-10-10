@@ -68,7 +68,11 @@ export class Simulation {
       const result = await this.providers.decide(o, controller.signal);
       if (generation !== this.generation || controller.signal.aborted) return;
       let action = validateAction(result.action, a);
+      let fallback = result.fallback,
+        reason = result.reason;
       if (!action) {
+        fallback = true;
+        reason = 'Invalid model action';
         action = validateAction(await this.providers.fallback.decide(o), a);
         this.emit(
           a,
@@ -81,7 +85,18 @@ export class Simulation {
           'system',
           `${a.name}: provider unavailable or over budget; using local rules.`,
         );
-      this.apply(a, action ?? { type: 'WAIT', seconds: 2 });
+      if (generation !== this.generation || controller.signal.aborted) return;
+      const applied = this.apply(a, action ?? { type: 'WAIT', seconds: 2 });
+      const provider = this.providers.providerFor(a.id);
+      this.providers.report(
+        a.id,
+        fallback ? 'Local rules' : provider.label,
+        !applied
+          ? 'Destination could not be reached'
+          : (reason ?? 'Decision applied'),
+        provider.mode === 'model' && !fallback && applied,
+        fallback,
+      );
     } catch {
       if (generation === this.generation && !controller.signal.aborted)
         this.apply(a, { type: 'WAIT', seconds: 2 });
@@ -136,6 +151,22 @@ export class Simulation {
     }
     return true;
   }
+  setProvider(agentId: string, providerId: string) {
+    const agent = this.agents.find((a) => a.id === agentId);
+    if (!agent) throw new Error('Unknown agent');
+    if (this.providers.providerFor(agentId).id === providerId) return;
+    this.pending.get(agentId)?.abort();
+    this.pending.delete(agentId);
+    const previousSource = this.providers.status(agentId).source;
+    this.providers.assign(agentId, providerId);
+    this.providers.report(
+      agentId,
+      previousSource,
+      'Ready for next decision',
+      false,
+      false,
+    );
+  }
   command(agentId: string, action: Action): boolean {
     const a = this.agents.find((a) => a.id === agentId);
     if (!a || !validateAction(action, a)) return false;
@@ -151,6 +182,7 @@ export class Simulation {
       speed: this.clock.speed,
       paused: this.clock.paused,
       randomSeed: this.randomSeed,
+      providers: this.providers.assignmentsSnapshot(),
       agents: this.agents,
       events: this.events,
       nextEventId: this.nextEventId,
@@ -159,6 +191,7 @@ export class Simulation {
   }
   restore(snapshot: Snapshot) {
     this.cancel();
+    this.providers.restoreAssignments(snapshot.providers);
     this.agents = structuredClone(snapshot.agents);
     this.events = structuredClone(snapshot.events);
     this.clock.elapsed = snapshot.elapsed;
@@ -172,6 +205,7 @@ export class Simulation {
   }
   reset() {
     this.cancel();
+    this.providers.clearReports();
     this.agents = initialAgents();
     this.events = [];
     this.clock = new SimulationClock();

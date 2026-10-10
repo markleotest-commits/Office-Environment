@@ -11,9 +11,12 @@
     "test": "tsx --test tests/*.test.ts",
     "test:browser": "playwright test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "start:ai": "node server/index.mjs"
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "0.2.85",
+    "jose": "6.2.12",
     "three": "0.180.0"
   },
   "devDependencies": {

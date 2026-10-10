@@ -57,6 +57,7 @@ export type Observation = {
   availableActions: readonly string[];
 };
 export type Snapshot = {
+  providers?: Record<string, string>;
   version: 1;
   savedAt: string;
   elapsed: number;

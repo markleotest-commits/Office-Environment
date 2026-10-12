@@ -17,11 +17,13 @@ export class Simulation {
   readonly providers = new ProviderRouter();
   private pending = new Map<string, AbortController>();
   private generation = 0;
+  readonly inactive = new Set<string>();
+  tradingActive = false;
   constructor() {
     this.emit(
       null,
       'system',
-      'Fieldwork started. Three agents, one shared world.',
+      'AURELIUS opened. Research → strategy → risk → paper execution.',
     );
   }
   emit(agent: AgentState | null, kind: WorldEvent['kind'], text: string) {
@@ -53,6 +55,7 @@ export class Simulation {
     const dt = this.clock.advance(seconds);
     if (!dt) return;
     for (const a of this.agents) {
+      if (this.inactive.has(a.id)) continue;
       advanceAgent(a, dt);
       if (a.state === 'idle' && a.remaining === 0 && !this.pending.has(a.id))
         void this.decide(a);
@@ -65,7 +68,14 @@ export class Simulation {
     a.decisions++;
     try {
       const o = observe(a, this.agents, this.clock.elapsed);
-      const result = await this.providers.decide(o, controller.signal);
+      const result = this.tradingActive
+        ? {
+            action: await this.providers.fallback.decide(o),
+            fallback: false,
+            reason:
+              'Office routine; trading decisions run at the research desk',
+          }
+        : await this.providers.decide(o, controller.signal);
       if (generation !== this.generation || controller.signal.aborted) return;
       let action = validateAction(result.action, a);
       let fallback = result.fallback,
@@ -87,7 +97,9 @@ export class Simulation {
         );
       if (generation !== this.generation || controller.signal.aborted) return;
       const applied = this.apply(a, action ?? { type: 'WAIT', seconds: 2 });
-      const provider = this.providers.providerFor(a.id);
+      const provider = this.tradingActive
+        ? this.providers.fallback
+        : this.providers.providerFor(a.id);
       this.providers.report(
         a.id,
         fallback ? 'Local rules' : provider.label,
@@ -141,15 +153,30 @@ export class Simulation {
       this.emit(
         a,
         'observe',
-        `${a.name} spotted ${o.nearbyAgents.map((n) => n.name).join(' and ') || 'a quiet stretch of the island'}.`,
+        `${a.name} spotted ${o.nearbyAgents.map((n) => n.name).join(' and ') || 'a quiet section of the office'}.`,
       );
-    } else {
+    } else if (action.type === 'WAIT') {
       a.state = 'resting';
       a.remaining = action.seconds;
       a.latestAction = 'Taking a moment to recharge';
       this.emit(a, 'observe', `${a.name} is resting.`);
     }
     return true;
+  }
+  setInactive(ids: Iterable<string>) {
+    const next = new Set(ids);
+    for (const a of this.agents) {
+      if (next.has(a.id) && !this.inactive.has(a.id)) {
+        this.pending.get(a.id)?.abort();
+        this.pending.delete(a.id);
+        a.path = [];
+        a.state = 'idle';
+        a.remaining = 0;
+        a.latestAction = 'Eliminated at the paper capital floor';
+      }
+    }
+    this.inactive.clear();
+    next.forEach((id) => this.inactive.add(id));
   }
   setProvider(agentId: string, providerId: string) {
     const agent = this.agents.find((a) => a.id === agentId);
@@ -169,7 +196,8 @@ export class Simulation {
   }
   command(agentId: string, action: Action): boolean {
     const a = this.agents.find((a) => a.id === agentId);
-    if (!a || !validateAction(action, a)) return false;
+    if (!a || this.inactive.has(agentId) || !validateAction(action, a))
+      return false;
     this.pending.get(agentId)?.abort();
     this.pending.delete(agentId);
     return this.apply(a, action);
@@ -212,7 +240,7 @@ export class Simulation {
     this.interactions = {};
     this.randomSeed = 42;
     this.nextEventId = 1;
-    this.emit(null, 'system', 'A fresh start. The island has been reset.');
+    this.emit(null, 'system', 'A fresh start. The office has been reset.');
   }
   private cancel() {
     this.generation++;

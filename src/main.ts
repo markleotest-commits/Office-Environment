@@ -1,4 +1,7 @@
 import './style.css';
+import './office.css';
+import { Atmosphere } from './atmosphere';
+import { TradingDesk } from './trading-ui';
 import { Simulation } from './simulation';
 import { Persistence } from './persistence';
 import { World } from './world';
@@ -45,9 +48,7 @@ try {
       !walkable(point) ||
       !simulation.command(ui.selected, { type: 'MOVE_TO', target: point })
     ) {
-      ui.toast(
-        'Choose open ground, away from buildings, water, and the island edge.',
-      );
+      ui.toast('Choose open ground, away from desks and office walls.');
       return;
     }
     ui.guiding = false;
@@ -89,6 +90,8 @@ try {
   );
   ui.render();
 }
+const atmosphere = new Atmosphere(world);
+const tradingDesk = new TradingDesk(simulation, ui, world);
 function showWorldError(message: string) {
   const element = document.getElementById('world-error')!;
   element.hidden = false;
@@ -175,6 +178,8 @@ function frame(now: number) {
   }
   if (now - uiAt > 250) {
     ui.render();
+    atmosphere.tick();
+    tradingDesk.refreshPartner();
     uiAt = now;
   }
   if (now - fpsAt > 1500) {

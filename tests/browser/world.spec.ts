@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { Simulation } from '../../src/simulation';
-const storageKey = 'fieldwork.world.v1';
+const storageKey = 'aurelius.office.v1';
 async function panel(page: any, name: string, mobile: boolean) {
   if (mobile) await page.locator(`button[data-tab="${name}"]`).click();
 }
@@ -108,7 +108,9 @@ test('render, selection, movement, controls, storage, and offline reload', async
     0.1,
     150,
   );
-  camera.position.set(33, 35, 43);
+  camera.position.set(30, 31, 37);
+  if (camera.aspect < 0.85)
+    camera.position.multiplyScalar(0.85 / camera.aspect);
   camera.lookAt(0, 0, 0);
   camera.updateMatrixWorld();
   const destination = new Vector3(0, 0, 10).project(camera);
@@ -276,7 +278,7 @@ test('model picker routes GPT decisions through the local plan bridge and labels
   expect(
     await page.evaluate(
       () =>
-        JSON.parse(localStorage.getItem('fieldwork.world.v1')!).providers.nova,
+        JSON.parse(localStorage.getItem('aurelius.office.v1')!).providers.nova,
     ),
   ).toBe('gpt61');
 });
@@ -343,7 +345,7 @@ test('startup reports a missing script and repair preserves world saves and mode
   );
   await page.goto('/');
   await expect(page.locator('#startup-title')).toHaveText(
-    'Fieldwork could not open',
+    'AURELIUS could not open',
   );
   await expect(page.locator('#startup-detail')).toContainText(
     'app file could not load',
@@ -395,7 +397,7 @@ test('startup reports unsupported or broken JavaScript instead of a blank page',
   );
   await page.goto('/');
   await expect(page.locator('#startup-title')).toHaveText(
-    'Fieldwork could not open',
+    'AURELIUS could not open',
   );
   await expect(page.locator('#startup-detail')).not.toBeEmpty();
   await expect(

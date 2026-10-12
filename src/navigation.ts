@@ -1,11 +1,12 @@
-import { OBSTACLES, WORLD_RADIUS } from './config';
+import { OBSTACLES, OFFICE } from './config';
 import type { Vec2 } from './types';
 export const distance = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.z - b.z);
 export function walkable(p: Vec2): boolean {
   return (
     Number.isFinite(p.x) &&
     Number.isFinite(p.z) &&
-    Math.hypot(p.x, p.z) < WORLD_RADIUS - 1 &&
+    Math.abs(p.x) < OFFICE.width / 2 - 0.7 &&
+    Math.abs(p.z) < OFFICE.depth / 2 - 0.7 &&
     !OBSTACLES.some(
       (o) =>
         Math.abs(p.x - o.x) < o.width / 2 + 0.6 &&
@@ -15,7 +16,7 @@ export function walkable(p: Vec2): boolean {
 }
 export function segmentWalkable(a: Vec2, b: Vec2): boolean {
   if (!walkable(a) || !walkable(b)) return false;
-  // Slab intersection with each expanded rectangle. The island disk is convex.
+  // Slab intersection with each expanded rectangle. The office boundary is convex.
   return !OBSTACLES.some((o) => {
     let enter = 0,
       exit = 1;

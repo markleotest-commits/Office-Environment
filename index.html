@@ -6,18 +6,18 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#edf1e8" />
+    <meta name="theme-color" content="#101b26" />
     <meta
       name="description"
-      content="A living low-poly world. Explore, observe, and guide three autonomous simulated agents. No keys required."
+      content="An independent AI trading office. Research, backtest, and measure paper strategies."
     />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <title>Fieldwork — AI World</title>
+    <title>AURELIUS — Capital Lab</title>
   </head>
   <body>
     <section id="startup" role="status" aria-live="polite">
-      <h1 id="startup-title">Opening Fieldwork…</h1>
+      <h1 id="startup-title">Opening AURELIUS…</h1>
       <p id="startup-detail">
         Loading the 3D world. Keep the Termux server running.
       </p>
@@ -48,7 +48,7 @@
         z-index: 10000;
         overflow: auto;
         padding: max(32px, env(safe-area-inset-top)) 24px;
-        background: #edf1e8;
+        background: #101b26;
         color: #20392c;
         font:
           16px/1.6 system-ui,
@@ -81,7 +81,7 @@
         var actions = document.getElementById('startup-actions');
         function failed(message) {
           if (started) return;
-          title.textContent = 'Fieldwork could not open';
+          title.textContent = 'AURELIUS could not open';
           detail.textContent = message;
           actions.hidden = false;
         }

@@ -1,7 +1,7 @@
 import { initialAgents, POIS } from './config';
 import { walkable, segmentWalkable } from './navigation';
 import type { Snapshot } from './types';
-const KEY = 'fieldwork.world.v1';
+const KEY = 'aurelius.office.v1';
 const n = (v: unknown, min = 0, max = 1e9) =>
   typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
 const text = (v: unknown, max: number) =>
@@ -108,13 +108,35 @@ export class Persistence {
   }
   load(): { snapshot: Snapshot | null; message: string } {
     try {
-      const data = this.storage.getItem(KEY);
+      const data =
+        this.storage.getItem(KEY) ?? this.storage.getItem('fieldwork.world.v1');
       if (!data)
         return {
           snapshot: null,
           message: 'New world · autosave every 10 seconds',
         };
-      const parsed: unknown = JSON.parse(data);
+      let parsed: unknown = JSON.parse(data);
+      if (
+        record(parsed) &&
+        Array.isArray(parsed.agents) &&
+        parsed.agents.length === 3 &&
+        parsed.agents.every(
+          (a: any, i: number) =>
+            a?.role === ['Explorer', 'Caretaker', 'Connector'][i],
+        )
+      ) {
+        const legacy = parsed;
+        parsed = {
+          ...legacy,
+          agents: initialAgents().map((a, i) => ({
+            ...a,
+            energy: legacy.agents[i].energy,
+            memory: legacy.agents[i].memory,
+            decisions: legacy.agents[i].decisions,
+            visits: legacy.agents[i].visits,
+          })),
+        };
+      }
       if (!validSnapshot(parsed))
         return {
           snapshot: null,

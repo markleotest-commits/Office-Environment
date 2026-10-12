@@ -22,14 +22,14 @@ export class RuleBasedProvider implements AIProvider {
       const other = o.nearbyAgents[o.decision % o.nearbyAgents.length];
       return {
         type: 'SAY',
-        message: `Hi ${other.name}! ${o.role === 'Explorer' ? 'I’m mapping the island.' : o.role === 'Caretaker' ? 'The garden is in good hands.' : 'Let’s share what we find.'}`,
+        message: `Hi ${other.name}! ${o.agentId === 'nova' ? 'Research is ready for review.' : o.agentId === 'atlas' ? 'Check the downside before execution.' : 'Let’s compare the paper ledger.'}`,
       };
     }
     if (o.decision % 7 === 0) {
       const angle =
         o.decision * 2.4 +
         (o.agentId === 'atlas' ? 1 : o.agentId === 'echo' ? 2 : 0);
-      const target = { x: Math.sin(angle) * 13, z: Math.cos(angle) * 13 };
+      const target = { x: Math.sin(angle) * 13, z: Math.cos(angle) * 10 };
       if (walkable(target)) return { type: 'MOVE_TO', target };
     }
     if (o.decision % 5 === 0) return { type: 'OBSERVE' };

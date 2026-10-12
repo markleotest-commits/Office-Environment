@@ -17,6 +17,25 @@ export function validObservation(o) {
   const str = (s, max) => typeof s === 'string' && s.length <= max;
   return (
     o &&
+    (o.trading === undefined ||
+      (o.trading &&
+        str(o.trading.symbol, 40) &&
+        str(o.trading.position, 40) &&
+        str(o.trading.target, 160) &&
+        num(o.trading.equity) &&
+        Array.isArray(o.trading.bars) &&
+        o.trading.bars.length >= 1 &&
+        o.trading.bars.length <= 60 &&
+        o.trading.bars.every(
+          (b) =>
+            b &&
+            ['time', 'open', 'high', 'low', 'close', 'volume'].every((k) =>
+              num(b[k]),
+            ) &&
+            b.low > 0 &&
+            b.high >= Math.max(b.open, b.close) &&
+            b.low <= Math.min(b.open, b.close),
+        ))) &&
     ['nova', 'atlas', 'echo'].includes(o.agentId) &&
     str(o.name, 40) &&
     str(o.role, 40) &&

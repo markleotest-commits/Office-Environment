@@ -1,5 +1,6 @@
 export type Vec2 = { x: number; z: number };
 export type Action =
+  | { type: 'TRADE'; side: 'LONG' | 'SHORT' | 'FLAT' | 'HOLD'; message: string }
   | { type: 'MOVE_TO'; target: Vec2 }
   | { type: 'OBSERVE' }
   | { type: 'SAY'; message: string }
@@ -43,6 +44,13 @@ export type POI = {
 };
 export type Obstacle = { x: number; z: number; width: number; depth: number };
 export type Observation = {
+  trading?: {
+    symbol: string;
+    bars: import('./trading').Candle[];
+    equity: number;
+    position: string;
+    target: string;
+  };
   agentId: string;
   name: string;
   role: string;

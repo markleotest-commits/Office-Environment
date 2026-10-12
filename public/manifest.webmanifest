@@ -1,11 +1,11 @@
 {
-  "name": "Fieldwork \u2014 AI World",
-  "short_name": "Fieldwork",
+  "name": "AURELIUS \u2014 Capital Lab",
+  "short_name": "Aurelius",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#edf1e8",
-  "theme_color": "#edf1e8",
+  "background_color": "#101b26",
+  "theme_color": "#101b26",
   "icons": [
     {
       "src": "./icon.svg",

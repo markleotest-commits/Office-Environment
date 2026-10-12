@@ -229,3 +229,65 @@ test('model assignments survive snapshots and the reported source separates mode
   assert.equal(sim.providers.status('atlas').fallbacks, 1);
   assert.equal(sim.providers.status('atlas').detail, 'Not loaded');
 });
+
+test('legacy island save migrates memories and models into safe office positions without overwriting the old key', () => {
+  const legacy = new Simulation().snapshot();
+  const roles = ['Explorer', 'Caretaker', 'Connector'];
+  const colors = ['#e98b53', '#398b81', '#9c85c5'];
+  legacy.agents.forEach((a, i) => {
+    a.role = roles[i];
+    a.color = colors[i];
+    a.position = { x: 20, z: 0 };
+    a.path = [{ x: 20, z: 10 }];
+    a.memory = [{ time: 0, text: 'Preserved research note' }];
+  });
+  legacy.providers = { nova: 'gpt61' };
+  const values = new Map([['fieldwork.world.v1', JSON.stringify(legacy)]]);
+  const p = new Persistence({
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => {
+      values.set(key, value);
+    },
+    removeItem: (key) => {
+      values.delete(key);
+    },
+  });
+  const result = p.load();
+  assert.ok(result.snapshot);
+  assert.ok(validSnapshot(result.snapshot));
+  assert.equal(result.snapshot.providers?.nova, 'gpt61');
+  assert.equal(
+    result.snapshot.agents[0].memory[0].text,
+    'Preserved research note',
+  );
+  assert.equal(result.snapshot.agents[0].role, 'Research lead');
+  assert.equal(result.snapshot.agents[0].path.length, 0);
+  p.save(result.snapshot);
+  assert.equal(values.get('fieldwork.world.v1'), JSON.stringify(legacy));
+  assert.ok(values.has('aurelius.office.v1'));
+});
+
+test('capital elimination cancels pending office decisions and prevents later actions', async () => {
+  const sim = new Simulation();
+  let resolve!: (value: unknown) => void;
+  sim.providers.register({
+    id: 'delayed',
+    label: 'Delayed',
+    mode: 'model',
+    decide: () =>
+      new Promise((r) => {
+        resolve = r;
+      }),
+  });
+  sim.providers.assign('nova', 'delayed');
+  sim.tick(0.05);
+  sim.setInactive(['nova']);
+  resolve({ type: 'SAY', message: 'Late message from eliminated agent' });
+  await flush();
+  await flush();
+  assert.equal(sim.command('nova', { type: 'SAY', message: 'Hello' }), false);
+  assert.ok(!sim.events.some((e) => e.text.includes('Late message')));
+  const position = { ...sim.agents[0].position };
+  sim.tick(0.05);
+  assert.deepEqual(sim.agents[0].position, position);
+});

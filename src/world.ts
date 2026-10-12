@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { POIS, WORLD_RADIUS } from './config';
+import { POIS } from './config';
+import { buildOffice } from './office';
 import type { AgentState, Vec2 } from './types';
 import { AgentMotion } from './motion';
 const material = (color: string | number) =>
@@ -32,6 +33,30 @@ export class World {
   private selected = 'nova';
   private resizeObserver: ResizeObserver;
   private low = true;
+  private initialResize = true;
+  private sky!: THREE.MeshBasicMaterial;
+  private ambient = new THREE.HemisphereLight('#fff0d0', '#253c50', 2);
+  private sun = new THREE.DirectionalLight('#fff1cc', 2);
+  private rain?: THREE.Points;
+  private lastAtmosphere = '';
+  private inactive = new Set<string>();
+  setInactive(ids: Iterable<string>) {
+    this.inactive = new Set(ids);
+  }
+  setAtmosphere(hour: number, weather: string) {
+    const key = `${Math.floor(hour * 60)}:${weather}`;
+    if (key === this.lastAtmosphere) return;
+    this.lastAtmosphere = key;
+    const daylight = Math.max(0, Math.sin(((hour - 6) / 12) * Math.PI));
+    const cloudy = ['Rain', 'Snow', 'Overcast'].includes(weather);
+    this.sky.color.set(
+      daylight > 0.1 ? (cloudy ? '#526778' : '#8aaabe') : '#111d37',
+    );
+    this.ambient.intensity = 1.35 + daylight * 0.9;
+    this.sun.intensity = 0.7 + daylight * (cloudy ? 0.6 : 1.6);
+    this.sun.color.set(daylight > 0.3 ? '#fff0d1' : '#f3b56e');
+    if (this.rain) this.rain.visible = weather === 'Rain' || weather === 'Snow';
+  }
   private materials = new Map<string, THREE.MeshStandardMaterial>();
   onSelect: (id: string) => void = () => {};
   onGround: (point: Vec2) => void = () => {};
@@ -46,17 +71,17 @@ export class World {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
-    this.renderer.setClearColor('#e1e9df');
+    this.renderer.setClearColor('#101d29');
     this.renderer.shadowMap.enabled = false;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.domElement.setAttribute(
       'aria-label',
-      'Interactive 3D island. Drag to orbit, pinch to zoom, two fingers to pan.',
+      'Interactive 3D trading office. Drag to orbit, pinch to zoom, two fingers to pan.',
     );
     host.prepend(this.renderer.domElement);
-    this.scene.fog = new THREE.Fog('#e1e9df', 68, 115);
-    this.scene.add(new THREE.HemisphereLight('#fff7df', '#5b786c', 1.8));
-    const sun = new THREE.DirectionalLight('#fff6df', 2.1);
+    this.scene.fog = new THREE.Fog('#101d29', 68, 115);
+    this.scene.add(this.ambient);
+    const sun = this.sun;
     sun.position.set(-20, 40, 15);
     sun.castShadow = true;
     Object.assign(sun.shadow.camera, {
@@ -79,7 +104,7 @@ export class World {
       this.zoomDistance = null;
     });
     this.controls.minDistance = 10;
-    this.controls.maxDistance = 65;
+    this.controls.maxDistance = 110;
     this.controls.maxPolarAngle = Math.PI / 2.25;
     this.controls.minPolarAngle = 0.15;
     this.controls.screenSpacePanning = false;
@@ -88,18 +113,18 @@ export class World {
     this.controls.addEventListener('change', () => {
       this.controls.target.x = THREE.MathUtils.clamp(
         this.controls.target.x,
-        -22,
-        22,
+        -16,
+        16,
       );
       this.controls.target.z = THREE.MathUtils.clamp(
         this.controls.target.z,
-        -22,
-        22,
+        -16,
+        16,
       );
       this.controls.target.y = 0;
     });
     this.resetCamera();
-    this.buildIsland();
+    this.buildOffice();
     this.mergeStaticGeometry();
     this.scene.updateMatrixWorld(true);
     this.scene.traverse((object) => {
@@ -107,6 +132,25 @@ export class World {
     });
     this.scene.matrixAutoUpdate = true;
     agents.forEach((a) => this.addAgent(a));
+    const drops = new Float32Array(120 * 3);
+    for (let i = 0; i < 120; i++) {
+      drops[i * 3] = ((i * 7.31) % 35) - 17.5;
+      drops[i * 3 + 1] = ((i * 0.731) % 5) + 0.6;
+      drops[i * 3 + 2] = -12.7;
+    }
+    const rainGeometry = new THREE.BufferGeometry();
+    rainGeometry.setAttribute('position', new THREE.BufferAttribute(drops, 3));
+    this.rain = new THREE.Points(
+      rainGeometry,
+      new THREE.PointsMaterial({
+        color: '#b9d8e8',
+        size: 0.06,
+        transparent: true,
+        opacity: 0.65,
+      }),
+    );
+    this.rain.visible = false;
+    this.scene.add(this.rain);
     this.selection = new THREE.Mesh(
       new THREE.RingGeometry(0.66, 0.81, 32),
       new THREE.MeshBasicMaterial({ color: '#fff6dd', side: THREE.DoubleSide }),
@@ -161,234 +205,18 @@ export class World {
   ) {
     return this.mesh(new THREE.BoxGeometry(w, h, d), color, x, y, z, parent);
   }
-  private buildIsland() {
-    // Everything is local procedural geometry; no texture or model downloads.
-    this.mesh(
-      new THREE.CylinderGeometry(23.4, 22.2, 1.8, 48),
-      '#acb5a3',
-      0,
-      -1,
-      0,
-    );
-    this.mesh(
-      new THREE.CylinderGeometry(23.7, 23.4, 0.24, 48),
-      '#d2d2ad',
-      0,
-      -0.13,
-      0,
-    );
-    this.mesh(
-      new THREE.CylinderGeometry(23.2, 23.5, 0.12, 48),
-      '#a6bc87',
-      0,
-      0.01,
-      0,
-    );
-    const sea = this.mesh(
-      new THREE.PlaneGeometry(250, 250),
-      '#b8ceca',
-      0,
-      -2.0,
-      0,
-    );
-    sea.rotation.x = -Math.PI / 2;
-    sea.receiveShadow = false;
-    // Soft ground contact shadows work in economy mode without shadow maps.
-    const circle = new THREE.CircleGeometry(1, 24);
-    const soft = new THREE.MeshBasicMaterial({
-      color: '#5c795a',
-      transparent: true,
-      opacity: 0.18,
-      depthWrite: false,
-    });
-    const shadow = (x: number, z: number, sx: number, sz: number) => {
-      const m = new THREE.Mesh(circle, soft);
-      m.rotation.x = -Math.PI / 2;
-      m.position.set(x + 0.4, 0.085, z + 0.3);
-      m.scale.set(sx, sz, 1);
-      this.scene.add(m);
-    };
-    const path = (x: number, z: number, w: number, d: number, angle = 0) => {
-      const m = this.box(w, 0.04, d, '#d7d3b3', x, 0.1, z);
-      m.rotation.y = angle;
-      m.castShadow = false;
-    };
-    path(0, -3, 3.2, 16);
-    path(-5, -4.8, 12, 2.5);
-    path(5, -3.8, 12, 2.5);
-    path(-5, 4.2, 13, 2.1, 0.48);
-    path(5, 5.2, 13, 2.1, -0.63);
-    this.mesh(
-      new THREE.CylinderGeometry(4.1, 4.1, 0.1, 32),
-      '#ded9bd',
-      0,
-      0.14,
-      1,
-    );
-    this.mesh(
-      new THREE.CylinderGeometry(2.6, 2.6, 0.1, 24),
-      '#c3ccb0',
-      0,
-      0.2,
-      1,
-    );
-    // Meeting circle: three benches around a small communal table.
-    for (let i = 0; i < 3; i++) {
-      const a = (i * Math.PI * 2) / 3;
-      const group = new THREE.Group();
-      group.position.set(Math.sin(a) * 3, 0, 1 + Math.cos(a) * 3);
-      group.rotation.y = a;
-      this.box(1.8, 0.2, 0.55, '#9d785a', 0, 0.65, 0, group);
-      this.box(1.8, 0.45, 0.14, '#b5906c', 0, 1, 0.3, group);
-      [-0.65, 0.65].forEach((x) =>
-        this.box(0.12, 0.5, 0.4, '#5e7160', x, 0.3, 0, group),
-      );
-      this.scene.add(group);
-    }
-    this.mesh(
-      new THREE.CylinderGeometry(0.9, 0.9, 0.14, 12),
-      '#e8dbb8',
-      0,
-      0.9,
-      1,
-    );
-    this.mesh(
-      new THREE.CylinderGeometry(0.15, 0.2, 0.8, 8),
-      '#8a7960',
-      0,
-      0.5,
-      1,
-    );
-    this.building(-10, -9, 7, 4.6, '#eadcc2', '#517467', false);
-    this.building(10, -8, 6, 4.4, '#e3e4d7', '#727b7e', true);
-    // Lake and boardwalk.
-    const lake = this.mesh(
-      new THREE.CylinderGeometry(1, 1, 0.035, 16),
-      '#73aaa6',
-      -12,
-      0.09,
-      12,
-    );
-    lake.scale.set(4, 1, 3);
-    const rim = this.mesh(
-      new THREE.CylinderGeometry(1, 1, 0.03, 16),
-      '#c4caa3',
-      -12,
-      0.065,
-      12,
-    );
-    rim.scale.set(4.4, 1, 3.4);
-    this.box(5, 0.12, 1.6, '#bd956e', -10, 0.22, 8.2);
-    for (let i = 0; i < 11; i++)
-      this.box(0.04, 0.02, 1.6, '#8f775d', -12.3 + i * 0.45, 0.29, 8.2);
-    this.box(0.12, 1, 0.12, '#8f775d', -12.4, 0.7, 8.7);
-    this.box(0.12, 1, 0.12, '#8f775d', -7.6, 0.7, 8.7);
-    this.box(5, 0.12, 0.12, '#8f775d', -10, 1.1, 8.7);
-    // Garden boxes and greenhouse.
-    for (let row = 0; row < 3; row++) {
-      this.box(3.5, 0.35, 0.85, '#a78866', 9, 0.22, 11 + row * 1.6);
-      this.box(3.25, 0.04, 0.65, '#715a44', 9, 0.42, 11 + row * 1.6);
-      for (let col = 0; col < 6; col++)
-        this.mesh(
-          new THREE.IcosahedronGeometry(0.26, 0),
-          row === 1 ? '#c4a366' : '#648e57',
-          7.65 + col * 0.53,
-          0.64,
-          11 + row * 1.6,
-        );
-    }
-    this.box(2.7, 1.8, 4.5, '#c8dbbf', 13, 1, 11);
-    const greenhouseRoof = this.mesh(
-      new THREE.CylinderGeometry(1, 1, 4.5, 3),
-      '#81a59b',
-      13,
-      2.5,
-      11,
-    );
-    greenhouseRoof.rotation.x = Math.PI / 2;
-    greenhouseRoof.rotation.z = Math.PI / 2;
-    greenhouseRoof.scale.set(1.6, 1, 0.8);
-    for (let i = -1; i <= 1; i++)
-      this.box(0.08, 1.8, 4.6, '#e5dec7', 13 + i * 1.25, 1, 11);
-    // Trees are instanced: 126 pieces in three draw calls.
-    const positions: { x: number; z: number; s: number }[] = [];
-    let seed = 17;
-    const rand = () => {
-      seed = (seed * 16807) % 2147483647;
-      return seed / 2147483647;
-    };
-    for (let i = 0; i < 42; i++) {
-      const a = i * 2.39996;
-      const radius = 17.4 + rand() * 4.3;
-      const x = Math.sin(a) * radius,
-        z = Math.cos(a) * radius;
-      positions.push({ x, z, s: 0.7 + rand() * 0.5 });
-      shadow(x, z, 1.5, 1.15);
-    }
-    const trunks = new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.16, 0.25, 1.6, 5),
-      this.mat('#89785a'),
-      positions.length,
-    );
-    const crown = new THREE.InstancedMesh(
-      new THREE.ConeGeometry(1.3, 2.7, 5),
-      this.mat('#648763'),
-      positions.length,
-    );
-    const upper = new THREE.InstancedMesh(
-      new THREE.ConeGeometry(0.95, 2.2, 5),
-      this.mat('#7c9a6a'),
-      positions.length,
-    );
-    const dummy = new THREE.Object3D();
-    positions.forEach((p, i) => {
-      for (const [mesh, y] of [
-        [trunks, 0.8],
-        [crown, 2.25],
-        [upper, 3.35],
-      ] as const) {
-        dummy.position.set(p.x, y * p.s, p.z);
-        dummy.scale.setScalar(p.s);
-        dummy.rotation.y = i;
-        dummy.updateMatrix();
-        mesh.setMatrixAt(i, dummy.matrix);
-      }
-    });
-    [trunks, crown, upper].forEach((m) => {
-      m.castShadow = true;
-      m.receiveShadow = true;
-      this.scene.add(m);
-    });
-    // A few faceted boulders and meadow tufts.
-    for (let i = 0; i < 30; i++) {
-      const a = rand() * Math.PI * 2,
-        r = 15 + rand() * 6;
-      const x = Math.sin(a) * r,
-        z = Math.cos(a) * r;
-      const rock = this.mesh(
-        new THREE.IcosahedronGeometry(0.3 + rand() * 0.5, 0),
-        '#a0aa94',
-        x,
-        0.2,
-        z,
-      );
-      rock.scale.set(1, 0.7, 0.85);
-    }
+  private buildOffice() {
+    this.sky = buildOffice(this.scene);
     for (const poi of POIS) {
       const label = document.createElement('span');
       label.className = 'place-label';
       label.textContent = poi.name;
-      label.dataset.x = String(poi.position.x);
-      label.dataset.z = String(poi.position.z);
       this.host.append(label);
       this.placeLabels.push({
         element: label,
-        position: new THREE.Vector3(poi.position.x, 0.4, poi.position.z - 0.8),
+        position: new THREE.Vector3(poi.position.x, 0.4, poi.position.z),
       });
     }
-    shadow(-10, -9, 5, 3);
-    shadow(10, -8, 4.5, 3);
-    shadow(13, 11, 2, 3);
   }
   private mergeStaticGeometry() {
     // Vertex colours let differently coloured scenery share draw calls, including nested benches.
@@ -466,91 +294,11 @@ export class World {
     });
     originals.forEach((g) => g.dispose());
   }
-  private building(
-    x: number,
-    z: number,
-    w: number,
-    d: number,
-    wall: string,
-    roof: string,
-    flat: boolean,
-  ) {
-    this.box(w + 0.3, 0.25, d + 0.3, '#b9b8a0', x, 0.2, z);
-    this.box(w, 2.8, d, wall, x, 1.7, z);
-    if (flat) {
-      this.box(w + 0.5, 0.35, d + 0.5, roof, x, 3.25, z);
-      for (let i = 0; i < 3; i++) {
-        const panel = this.box(
-          1.3,
-          0.12,
-          2.5,
-          '#456a75',
-          x - 1.8 + i * 1.7,
-          3.6,
-          z,
-        );
-        panel.rotation.x = -0.18;
-        this.box(1.2, 0.3, 0.7, '#9da9a2', x - 1.8 + i * 1.7, 3.45, z - 1.2);
-      }
-    } else {
-      const shape = new THREE.Shape();
-      shape.moveTo(-w / 2 - 0.3, 0);
-      shape.lineTo(0, 1.6);
-      shape.lineTo(w / 2 + 0.3, 0);
-      shape.closePath();
-      const geo = new THREE.ExtrudeGeometry(shape, {
-        depth: d + 0.6,
-        bevelEnabled: false,
-      });
-      this.mesh(geo, roof, x, 3.1, z - d / 2 - 0.3);
-      this.box(0.6, 1.3, 0.6, '#8f9d8d', x - 2, 4.1, z);
-    }
-    this.box(1, 1.9, 0.1, '#6f897e', x, 1.25, z + d / 2 + 0.06);
-    this.box(0.12, 0.12, 0.12, '#e9cf8d', x + 0.3, 1.3, z + d / 2 + 0.15);
-    for (const side of [-1, 1]) {
-      this.box(
-        1.45,
-        1.1,
-        0.12,
-        '#fcf5de',
-        x + side * 2.1,
-        1.9,
-        z + d / 2 + 0.08,
-      );
-      this.box(
-        1.2,
-        0.85,
-        0.14,
-        '#86b1b3',
-        x + side * 2.1,
-        1.9,
-        z + d / 2 + 0.1,
-      );
-      this.box(
-        0.06,
-        0.9,
-        0.18,
-        '#ded9c6',
-        x + side * 2.1,
-        1.9,
-        z + d / 2 + 0.14,
-      );
-      this.box(1.7, 0.28, 0.4, '#a38767', x + side * 2.1, 0.7, z + d / 2 + 0.3);
-      for (let i = 0; i < 3; i++)
-        this.mesh(
-          new THREE.IcosahedronGeometry(0.3, 0),
-          '#71966a',
-          x + side * 2.1 + (i - 1) * 0.45,
-          0.95,
-          z + d / 2 + 0.3,
-        );
-    }
-    this.box(1.8, 0.2, 0.7, '#cfccb5', x, 0.2, z + d / 2 + 0.5);
-  }
   private addAgent(agent: AgentState) {
     const group = new THREE.Group();
     group.userData.agentId = agent.id;
-    this.box(0.65, 0.72, 0.4, agent.color, 0, 1.0, 0, group);
+    this.box(0.65, 0.72, 0.4, '#24313f', 0, 1.0, 0, group);
+    this.box(0.24, 0.32, 0.035, '#efe4cf', 0, 1.3, 0.22, group);
     this.mesh(
       new THREE.IcosahedronGeometry(0.32, 1),
       '#edcba6',
@@ -560,17 +308,17 @@ export class World {
       group,
     );
     this.mesh(
-      new THREE.CylinderGeometry(0.34, 0.34, 0.14, 8),
-      agent.color,
+      new THREE.CylinderGeometry(0.3, 0.32, 0.16, 8),
+      '#362b28',
       0,
       1.95,
       0,
       group,
     );
-    this.box(0.32, 0.06, 0.3, agent.color, 0, 1.88, 0.22, group);
+
     this.box(0.06, 0.07, 0.03, '#394c42', -0.11, 1.72, 0.29, group);
     this.box(0.06, 0.07, 0.03, '#394c42', 0.11, 1.72, 0.29, group);
-    this.box(0.42, 0.48, 0.18, '#6d7565', 0, 1.05, -0.27, group);
+    this.box(0.1, 0.39, 0.035, agent.color, 0, 1.25, 0.29, group);
     const legs = [-1, 1].map((side) => {
       const hip = new THREE.Group();
       hip.position.set(side * 0.18, 0.66, 0);
@@ -582,7 +330,7 @@ export class World {
     const arms = [-1, 1].map((side) => {
       const shoulder = new THREE.Group();
       shoulder.position.set(side * 0.45, 1.33, 0);
-      this.box(0.2, 0.62, 0.25, agent.color, 0, -0.31, 0, shoulder);
+      this.box(0.2, 0.62, 0.25, '#24313f', 0, -0.31, 0, shoulder);
       group.add(shoulder);
       return shoulder;
     });
@@ -673,6 +421,10 @@ export class World {
       Math.min(window.devicePixelRatio, this.low ? 1 : 1.5),
     );
     this.renderer.setSize(w, h);
+    if (this.initialResize) {
+      this.initialResize = false;
+      this.resetCamera();
+    }
   }
   setQuality(low: boolean) {
     this.low = low;
@@ -695,7 +447,9 @@ export class World {
     this.controls.enableDamping = false;
     this.controls.update();
     this.controls.target.set(0, 0, 0);
-    this.camera.position.set(33, 35, 43);
+    this.camera.position.set(30, 31, 37);
+    if (this.camera.aspect < 0.85)
+      this.camera.position.multiplyScalar(0.85 / this.camera.aspect);
     this.controls.update();
     this.controls.enableDamping = true;
   }
@@ -739,6 +493,11 @@ export class World {
     this.camera.updateMatrixWorld();
     for (const a of agents) {
       const mesh = this.meshes.get(a.id)!;
+      mesh.visible = !this.inactive.has(a.id);
+      if (!mesh.visible) {
+        this.labels.get(a.id)!.hidden = true;
+        continue;
+      }
       const motion = this.motions
         .get(a.id)!
         .sample(a, alpha, paused ? 0 : seconds);
@@ -798,7 +557,8 @@ export class World {
         positions.needsUpdate = true;
       }
     }
-    this.route.visible = selected.path.length > 0;
+    this.selection.visible = !this.inactive.has(selected.id);
+    this.route.visible = selected.path.length > 0 && this.selection.visible;
     if (this.route.visible) {
       const positions = this.route.geometry.getAttribute('position');
       const distances = this.route.geometry.getAttribute('lineDistance');
@@ -817,6 +577,12 @@ export class World {
     }
     for (const { element, position } of this.placeLabels)
       this.project(element, position.x, position.y, position.z);
+    if (this.rain?.visible) {
+      const drops = this.rain.geometry.getAttribute('position');
+      for (let i = 0; i < drops.count; i++)
+        drops.setY(i, 0.6 + ((drops.getY(i) - 0.6 - seconds * 2 + 5) % 5));
+      drops.needsUpdate = true;
+    }
     this.renderer.render(this.scene, this.camera);
   }
   private project(label: HTMLElement, x: number, y: number, z: number) {

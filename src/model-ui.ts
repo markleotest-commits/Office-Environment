@@ -35,18 +35,18 @@ export class ModelControls {
     this.dialog.className = 'models-dialog';
     this.dialog.innerHTML = `
       <button id="models-close" class="model-close" aria-label="Close AI models">×</button>
-      <div class="eyebrow">THE MINDS BEHIND THE MOVEMENT</div><h2>Choose your agents’ models.</h2>
-      <p>Connect GPT‑6.1‑sol through your ChatGPT plan, and run free models directly on this device. Local rules remain available whenever a model cannot decide.</p>
+      <div class="eyebrow">THE MINDS BEHIND THE FIRM</div><h2>Choose your agents’ models.</h2>
+      <p>Connect GPT‑6.1‑sol through your ChatGPT plan, and run free models directly on this device. Office routines can use local rules. In trading mode, failed AI requests hold positions and are labeled.</p>
       <section class="model-card"><h3>GPT‑6.1‑sol</h3><p>Uses your included ChatGPT/Codex allowance. No API key or API billing is used. Keep app credit use off in ChatGPT settings to stay within included usage.</p>
         <div class="model-account"><label>ChatGPT account<select id="plan-account"><option value="new">Add a ChatGPT account</option></select></label><a href="https://chatgpt.com/settings/usage" target="_blank" rel="noopener noreferrer">Manage usage ↗</a></div>
         <p id="plan-status" class="model-status">Start the AI server to connect your plan.</p>
         <div class="model-buttons"><button id="plan-sign-in" class="solid-button">Continue with ChatGPT</button><button id="plan-refresh" class="outline-button">Check connection</button><button id="plan-sign-out" class="outline-button" hidden>Sign out</button></div>
       </section>
-      <section class="model-card"><h3>Free on-device models</h3><p>Load once from Hugging Face and MLC, then use cached weights offline. Requires WebGPU and enough phone memory; together these models may need over 1 GB of GPU memory. You can assign one small model to both residents to reduce memory use.</p>
+      <section class="model-card"><h3>Free on-device models</h3><p>Load once from Hugging Face and MLC, then use cached weights offline. Requires WebGPU and enough phone memory; together these models may need over 1 GB of GPU memory. You can assign one small model to both partners to reduce memory use.</p>
         <div class="local-model"><div><strong>Qwen2.5 0.5B</strong><span id="qwen-status" class="model-status">Not loaded</span></div><button id="load-qwen" class="outline-button">Load Qwen</button><button id="unload-qwen" class="text-button" hidden>Unload</button></div>
         <div class="local-model"><div><strong>SmolLM2 135M</strong><span id="smollm-status" class="model-status">Not loaded</span></div><button id="load-smollm" class="outline-button">Load SmolLM</button><button id="unload-smollm" class="text-button" hidden>Unload</button></div>
       </section>
-      <section class="model-card"><h3>Assign one mind to each resident</h3><div class="model-roster">${sim.agents.map((a) => `<label>${a.name}<select data-model-agent="${a.id}" aria-label="Model for ${a.name}">${MODEL_OPTIONS.map((m) => `<option value="${m.id}">${m.label}</option>`).join('')}</select></label>`).join('')}</div>
+      <section class="model-card"><h3>Assign one mind to each partner</h3><div class="model-roster">${sim.agents.map((a) => `<label>${a.name}<select data-model-agent="${a.id}" aria-label="Model for ${a.name}">${MODEL_OPTIONS.map((m) => `<option value="${m.id}">${m.label}</option>`).join('')}</select></label>`).join('')}</div>
         <div class="model-buttons"><button id="assign-models" class="solid-button">Apply model choices</button><button id="suggest-roster" class="outline-button">GPT + Qwen + SmolLM</button></div><p id="model-assignment-status" class="model-status">Load or connect each selected model before applying.</p>
       </section>
       <p class="model-note">Selected models are saved with the world. On-device models must be loaded again after reopening the app; cached downloads are reused. The agent panel shows the source of its last decision and any fallback.</p>

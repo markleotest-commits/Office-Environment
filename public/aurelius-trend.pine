@@ -1,0 +1,27 @@
+//@version=6
+// Fixed trend baseline only. AI-generated decisions are not reproduced by this script.
+// TradingView Strategy Tester simulations do not submit orders to Paper Trading.
+strategy("AURELIUS • Trend baseline", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=25, commission_type=strategy.commission.percent, commission_value=0.1, slippage=2, margin_long=100, margin_short=100)
+startTime = input.time(timestamp("01 Jan 2025 00:00 +0000"), "Evaluation start (match imported data)")
+endTime = input.time(timestamp("01 Jan 2030 00:00 +0000"), "Evaluation end")
+fast = ta.sma(close, 8)
+slow = ta.sma(close, 30)
+var bool eliminated = false
+if strategy.equity <= 8000
+    eliminated := true
+    strategy.close_all(comment="20% capital floor")
+if not eliminated and time >= startTime and time <= endTime
+    if fast > slow * 1.002
+        strategy.entry("Long", strategy.long)
+    else if fast < slow * 0.998
+        strategy.entry("Short", strategy.short)
+    else
+        strategy.close_all(comment="Neutral signal")
+if strategy.position_size > 0
+    strategy.exit("Long risk", "Long", stop=strategy.position_avg_price*0.98, limit=strategy.position_avg_price*1.04)
+if strategy.position_size < 0
+    strategy.exit("Short risk", "Short", stop=strategy.position_avg_price*1.02, limit=strategy.position_avg_price*0.96)
+if time > endTime
+    strategy.close_all(comment="End of sample")
+plot(fast, color=color.teal)
+plot(slow, color=color.orange)

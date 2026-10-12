@@ -25,42 +25,46 @@ export function timeLabel(seconds: number) {
 export function shell(app: HTMLElement) {
   app.innerHTML = `
     <header class="topbar">
-      <a class="brand" href="./" aria-label="Fieldwork home"><span class="brand-mark">${icon('leaf')}</span><span>fieldwork<span class="brand-dot">.</span></span></a>
-      <div class="header-center"><span class="live-dot"></span> A LITTLE WORLD, ALWAYS IN MOTION</div>
-      <div class="header-end"><button id="models" class="models-button" aria-label="Configure AI models">${icon('chat')} AI models</button><button id="help" class="icon-button" aria-label="Controls and help">${icon('help')}</button></div>
+      <a class="brand" href="./" aria-label="Aurelius home"><span class="brand-mark">A<span>↗</span></span><span>AURELIUS<small>CAPITAL LAB</small></span></a>
+      <div class="header-center"><span class="live-dot"></span> INDEPENDENT MINDS. ACCOUNTABLE CAPITAL.</div>
+      <div class="header-end"><span class="paper-badge">PAPER ONLY</span><button id="models" class="models-button" aria-label="Configure AI models">${icon('chat')} AI models</button><button id="help" class="icon-button" aria-label="Controls and help">${icon('help')}</button></div>
     </header>
+    <div class="market-strip"><span><i class="live-dot"></i> THE PARTNERSHIP</span><span>STARTING CAPITAL <b>$30,000</b></span><span>NET EQUITY <b id="firm-equity">$30,000</b></span><span>ACTIVE PARTNERS <b id="active-partners">03 / 03</b></span><span>WIN-RATE OBJECTIVE <b>&gt;85%</b></span></div>
     <main class="workspace">
       <aside class="sidebar" aria-label="Agent controls">
-        <div class="sidebar-heading"><div class="eyebrow">YOUR FIELD NOTES <span>01 / WORLD</span></div><h1>A world of<br>possibilities.</h1><p>Three curious minds.<br>One place to see what happens.</p></div>
-        <div class="agent-section"><div class="section-label">THE RESIDENTS <span class="count">03</span></div><div id="agent-list"></div></div>
-        <div class="selected-panel"><div class="section-label">IN FOCUS <span id="selected-role"></span></div>
+        <div class="sidebar-heading"><div class="eyebrow">PERSONNEL <span>01 / THE FIRM</span></div><h1>Conviction.<br>With consequences.</h1><p>Three independent paper accounts.<br>One disciplined research floor.</p></div>
+        <div class="agent-section"><div class="section-label">THE PARTNERS <span class="count">03</span></div><div id="agent-list"></div></div>
+        <div class="selected-panel"><div class="section-label">PARTNER FILE <span id="selected-role"></span></div>
           <div class="agent-heading"><span id="selected-avatar" class="avatar large"></span><div><h2 id="selected-name"></h2><span id="selected-state" class="state-badge"></span></div><button id="focus" class="icon-button" aria-label="Center camera on selected agent">${icon('focus')}</button></div>
-          <p id="latest-action" class="latest-action"></p><p id="provider-status" class="provider-status"></p>
-          <div class="energy-row"><span>Energy</span><span id="energy-value"></span></div><div class="energy-track"><div id="energy-fill"></div></div>
+          <p id="selected-account" class="account-line">$10,000 paper capital</p><p id="latest-action" class="latest-action"></p><p id="provider-status" class="provider-status"></p>
+          <div class="energy-row"><span>Focus</span><span id="energy-value"></span></div><div class="energy-track"><div id="energy-fill"></div></div>
           <div class="agent-actions"><button id="move" class="outline-button">${icon('arrow')} Guide agent</button><button id="say" class="outline-button">${icon('chat')} Say hello</button></div>
-          <div class="memory-title">RECENT MEMORY <span id="memory-count"></span></div><ul id="memory-list" class="memory-list"></ul>
+          <div class="memory-title">DESK NOTES <span id="memory-count"></span></div><ul id="memory-list" class="memory-list"></ul>
         </div>
         <div class="sidebar-foot"><span class="tiny-dot"></span><span id="decision-mode">Simulated decisions · no AI model assigned</span></div>
       </aside>
       <section class="world-panel" aria-label="World simulation">
         <div id="viewport" class="viewport">
-          <div class="world-heading"><div class="eyebrow"><span class="live-dot"></span> FIELDWORK ISLAND</div><h2>The commons</h2><span class="world-subtitle">An open-ended agent experiment</span></div>
+          <div class="world-heading"><div class="eyebrow"><span class="live-dot"></span> HEADQUARTERS / FLOOR 24</div><h2>The trading floor<span>.</span></h2><span class="world-subtitle">RESEARCH · STRATEGY · RISK · EXECUTION</span></div>
           <div class="world-status"><span id="running-label">LIVE</span><span id="clock">00:00</span></div>
+          <div class="office-atmosphere"><span id="local-time"></span><button id="weather-connect">↗ Local weather</button><span id="weather-status">Weather off · enable location to connect</span></div>
           <div class="world-tools"><button id="zoom-in" class="icon-button" aria-label="Zoom in">${icon('plus')}</button><button id="zoom-out" class="icon-button" aria-label="Zoom out">${icon('minus')}</button><span></span><button id="camera-reset" class="icon-button" aria-label="Reset camera">${icon('focus')}</button></div>
-          <div class="compass"><span>N</span><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m16 4 5 16-5-3-5 3Z" fill="#335346"/><path d="m16 28 5-8-5-3-5 3Z" fill="#a4b2a2"/></svg></div>
-          <div class="view-hint" id="view-hint">Drag to orbit <i>·</i> Pinch to zoom <i>·</i> Tap an agent</div>
+          <div class="view-hint" id="view-hint">Drag to orbit · Pinch to zoom · Tap a partner</div>
           <div class="render-status"><span id="fps">— FPS</span><span id="render-detail"></span></div>
           <div id="world-error" class="world-error" hidden></div>
         </div>
-        <div class="simulation-bar"><div class="simulation-play"><button id="pause" class="play-button" aria-label="Pause simulation">${icon('pause')}</button><div><strong id="simulation-label">World is running</strong><span>Let curiosity take the lead.</span></div></div><div class="speed-control" aria-label="Simulation speed"><button data-speed="0.5">½×</button><button data-speed="1" class="active">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div><button id="reset" class="reset-button">${icon('reset')}<span>Reset world</span></button></div>
-        <div class="world-bottom"><div><span class="tiny-dot"></span><span id="save-status">Starting world…</span></div><div class="bottom-actions"><label class="quality-label"><span>Graphics</span><select id="quality" aria-label="Graphics quality"><option value="low">Economy</option><option value="high">Detailed</option></select></label><button id="save" class="text-button">${icon('save')} Save</button><button id="load" class="text-button">${icon('load')} Load</button></div></div>
+        <div class="simulation-bar"><div class="simulation-play"><button id="pause" class="play-button" aria-label="Pause simulation">${icon('pause')}</button><div><strong id="simulation-label">World is running</strong><span>The floor never trades with real funds.</span></div></div><div class="speed-control" aria-label="Simulation speed"><button data-speed="0.5">½×</button><button data-speed="1" class="active">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div><button id="reset" class="reset-button">${icon('reset')}<span>Reset office</span></button></div>
+        <div class="world-bottom"><div><span class="tiny-dot"></span><span id="save-status">Opening office…</span></div><div class="bottom-actions"><label class="quality-label"><span>Graphics</span><select id="quality" aria-label="Graphics quality"><option value="low">Economy</option><option value="high">Detailed</option></select></label><button id="save" class="text-button">${icon('save')} Save</button><button id="load" class="text-button">${icon('load')} Load</button></div></div>
+        <a href="#research-desk" class="desk-link">OPEN THE RESEARCH DESK <span>Backtest →</span></a>
       </section>
-      <aside class="journal" aria-label="World activity"><div class="journal-title"><span class="section-label">WORLD JOURNAL</span><span class="live-dot"></span></div><h2>Little things<br>are happening.</h2><p class="journal-subtitle">A shared record of island life.</p><div class="journal-tabs"><button data-filter="all" class="active">All activity</button><button data-filter="message">Conversations</button></div><ol id="event-list" class="event-list" aria-live="off"></ol><div class="journal-foot"><span id="interaction-count">0</span> interactions <i>·</i> stored on this device</div></aside>
+      <aside class="journal" aria-label="World activity"><div class="journal-title"><span class="section-label">FLOOR WIRE</span><span class="live-dot"></span></div><h2>The edge is<br>in the process.</h2><p class="journal-subtitle">A record of decisions, not promises.</p><div class="department-list"><span>01 <b>Research</b> Market observations</span><span>02 <b>Strategy</b> Independent hypotheses</span><span>03 <b>Risk</b> $8,000 survival floor</span><span>04 <b>Execution</b> Paper fills &amp; costs</span></div><div class="journal-tabs"><button data-filter="all" class="active">All activity</button><button data-filter="message">Conversations</button></div><ol id="event-list" class="event-list" aria-live="off"></ol><div class="journal-foot"><span id="interaction-count">0</span> desk visits <i>·</i> saved locally</div></aside>
+      <section id="research-desk" class="research-desk" aria-label="Paper trading research desk"></section>
     </main>
-    <nav class="mobile-tabs" aria-label="Mobile panels"><button data-tab="world" class="active">${icon('globe')} World</button><button data-tab="agents">${icon('leaf')} Agents</button><button data-tab="journal">${icon('chat')} Journal</button></nav>
+    <nav class="mobile-tabs" aria-label="Mobile panels"><button data-tab="world" class="active">${icon('globe')} Floor</button><button data-tab="desk">${icon('arrow')} Trading</button><button data-tab="agents">${icon('leaf')} Team</button><button data-tab="journal">${icon('chat')} Wire</button></nav>
     <div id="toast" class="toast" role="status"></div>
-    <dialog id="help-dialog"><button class="dialog-close icon-button" aria-label="Close help">${icon('close')}</button><div class="eyebrow">MAKE YOURSELF AT HOME</div><h2>A little room to explore.</h2><p>Drag with one finger to orbit. Use two fingers to pan or pinch to zoom. On desktop, drag to orbit, right-drag to pan, and scroll to zoom.</p><p>Tap a character or their name to select them. Use <b>Guide agent</b>, then tap a clear spot on the island. <b>Say hello</b> sends a message to residents within hearing range.</p><p>Pause or change speed any time. Your world autosaves every 10 seconds and when you leave. Save and load use this browser on this device.</p><p class="dialog-note">Agents start with local rules. Open AI models to connect GPT‑6.1‑sol using your ChatGPT plan, or load free on-device models. The agent panel reports the model behind each decision and any local fallback.</p><button class="solid-button dialog-close">Back to the island ${icon('arrow')}</button></dialog>
-    <dialog id="reset-dialog"><div class="eyebrow">A FRESH START</div><h2>Reset the island?</h2><p>This replaces your saved world, including all memories and activity, with a new simulation.</p><div class="dialog-actions"><button id="reset-cancel" class="outline-button">Keep exploring</button><button id="reset-confirm" class="solid-button">Reset world</button></div></dialog>
+    <dialog id="help-dialog"><button class="dialog-close icon-button" aria-label="Close help">${icon('close')}</button><div class="eyebrow">WELCOME TO THE FIRM</div><h2>Every thesis needs evidence.</h2><p>Drag to orbit. Pinch to zoom, two fingers to pan. On desktop, right-drag to pan and scroll to zoom. Select a partner to inspect their model and account.</p><p>In the research desk, fetch free BTC candles or import an OHLC CSV. Run fixed baselines to check the engine, or select Assigned AI models to request real model decisions. Failed model requests hold positions; they never become hidden rule-based trades.</p><p>Each partner starts with $10,000 paper capital and is eliminated at $8,000 equity. A new test starts new accounts. The 85% target is evaluated only with positive net profit and at least 100 closed trades. Results are historical simulations, not a return promise.</p><p>The floor clock follows your device time. Local weather uses approximate location only after you press Local weather, with data from <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. Office and backtests save on this browser; they do not sync between devices.</p><button class="solid-button dialog-close">Back to the floor ${icon('arrow')}</button></dialog>
+    <dialog id="reset-dialog"><div class="eyebrow">A FRESH START</div><h2>Reset the office?</h2><p>This replaces office positions, memories, and activity. Paper accounts and results are kept; use New test in the research desk to reset those.</p><div class="dialog-actions"><button id="reset-cancel" class="outline-button">Keep working</button><button id="reset-confirm" class="solid-button">Reset office</button></div></dialog>
+
   `;
 }
 export class UI {
@@ -150,7 +154,7 @@ export class UI {
           .forEach((b) =>
             b.classList.toggle('active', b.dataset.tab === 'world'),
           );
-        this.toast('Tap an open spot on the island to guide your agent');
+        this.toast('Tap an open spot on the office floor to guide your agent');
       }
     });
     this.render();
@@ -206,16 +210,23 @@ export class UI {
       b.classList.toggle('selected', b.dataset.agent === a.id);
       b.setAttribute('aria-pressed', String(b.dataset.agent === a.id));
     });
-    const agentKey = sim.agents.map((a) => a.state).join('|');
+    const agentKey = sim.agents
+      .map((a) => (sim.inactive.has(a.id) ? 'eliminated' : a.state))
+      .join('|');
     if (agentKey !== this.lastAgents) {
       sim.agents.forEach((a) => {
-        document.querySelector(`[data-state="${a.id}"]`)!.textContent = a.state;
+        document.querySelector(`[data-state="${a.id}"]`)!.textContent =
+          sim.inactive.has(a.id) ? 'eliminated' : a.state;
       });
       this.lastAgents = agentKey;
     }
     set('selected-name', a.name);
     set('selected-role', a.role);
-    set('selected-state', a.state);
+    set('selected-state', sim.inactive.has(a.id) ? 'eliminated' : a.state);
+    (document.getElementById('move') as HTMLButtonElement).disabled =
+      sim.inactive.has(a.id);
+    (document.getElementById('say') as HTMLButtonElement).disabled =
+      sim.inactive.has(a.id);
     set('latest-action', a.latestAction);
     const report = sim.providers.status(a.id);
     const assigned = sim.providers.providerFor(a.id);
@@ -261,7 +272,7 @@ export class UI {
       }
       if (!a.memory.length) {
         const li = document.createElement('li');
-        li.textContent = 'A blank notebook. Adventures ahead.';
+        li.textContent = 'A clean desk. Research starts here.';
         list.append(li);
       }
       set('memory-count', String(a.memory.length));
@@ -288,7 +299,7 @@ export class UI {
         const name = document.createElement('strong'),
           time = document.createElement('time'),
           text = document.createElement('p');
-        name.textContent = agent?.name ?? 'The world';
+        name.textContent = agent?.name ?? 'The firm';
         time.textContent = timeLabel(e.time);
         text.textContent = e.text;
         meta.append(name, time);

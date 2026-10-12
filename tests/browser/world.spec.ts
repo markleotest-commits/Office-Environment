@@ -23,6 +23,12 @@ test('render, selection, movement, controls, storage, and offline reload', async
   await expect
     .poll(async () => page.locator('#render-detail').textContent())
     .toContain('triangles');
+  const draws = Number(
+    (await page.locator('#render-detail').textContent())!.match(
+      /(\d+) draws/,
+    )![1],
+  );
+  expect(draws).toBeLessThan(60);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

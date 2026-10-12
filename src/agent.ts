@@ -2,16 +2,23 @@ import { distance } from './navigation';
 import type { AgentState } from './types';
 export function advanceAgent(a: AgentState, dt: number) {
   if (a.state === 'moving' && a.path.length) {
-    const goal = a.path[0];
-    const d = distance(a.position, goal);
-    const step = Math.min(d, dt * 1.65);
-    if (d > 0.001) {
+    let budget = dt * 1.65;
+    // Preserve unused travel distance across waypoints instead of stalling at each one.
+    while (a.path.length && budget > 0) {
+      const goal = a.path[0];
+      const d = distance(a.position, goal);
+      if (d < 0.000001) {
+        a.path.shift();
+        continue;
+      }
+      const step = Math.min(d, budget);
       a.heading = Math.atan2(goal.x - a.position.x, goal.z - a.position.z);
       a.position.x += ((goal.x - a.position.x) / d) * step;
       a.position.z += ((goal.z - a.position.z) / d) * step;
-      a.energy = Math.max(0, a.energy - dt * 0.7);
+      a.energy = Math.max(0, a.energy - (step / 1.65) * 0.7);
+      budget -= step;
+      if (d <= step) a.path.shift();
     }
-    if (d <= step + 0.001) a.path.shift();
     if (!a.path.length) {
       a.state = 'idle';
       a.remaining = 0.8;

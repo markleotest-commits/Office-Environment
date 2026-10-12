@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { POIS, WORLD_RADIUS } from './config';
 import type { AgentState, Vec2 } from './types';
+import { AgentMotion } from './motion';
 const material = (color: string | number) =>
   new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.95 });
 export class World {
@@ -11,13 +12,23 @@ export class World {
   readonly renderer: THREE.WebGLRenderer;
   readonly controls: OrbitControls;
   private meshes = new Map<string, THREE.Group>();
-  private legPairs = new Map<string, THREE.Mesh[]>();
+  private limbs = new Map<
+    string,
+    { legs: THREE.Group[]; arms: THREE.Group[] }
+  >();
+  private motions = new Map<string, AgentMotion>();
   private labels = new Map<string, HTMLElement>();
+  private placeLabels: { element: HTMLElement; position: THREE.Vector3 }[] = [];
+  private projection = new THREE.Vector3();
+  private width = 0;
+  private height = 0;
+  private zoomDistance: number | null = null;
+  private routePath: Vec2[] | null = null;
+  private routeLength = -1;
   private pickTargets: THREE.Object3D[] = [];
   private raycaster = new THREE.Raycaster();
   private selection: THREE.Mesh;
   private route: THREE.Line;
-  private routeKey = '';
   private selected = 'nova';
   private resizeObserver: ResizeObserver;
   private low = true;
@@ -30,7 +41,7 @@ export class World {
   ) {
     this.renderer = new THREE.WebGLRenderer({
       antialias: false,
-      powerPreference: 'low-power',
+      powerPreference: 'high-performance',
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -61,7 +72,12 @@ export class World {
     this.scene.add(sun);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.08;
+    this.controls.dampingFactor = 0.2;
+    this.controls.rotateSpeed = 0.7;
+    this.controls.zoomSpeed = 0.8;
+    this.controls.addEventListener('start', () => {
+      this.zoomDistance = null;
+    });
     this.controls.minDistance = 10;
     this.controls.maxDistance = 65;
     this.controls.maxPolarAngle = Math.PI / 2.25;
@@ -85,6 +101,11 @@ export class World {
     this.resetCamera();
     this.buildIsland();
     this.mergeStaticGeometry();
+    this.scene.updateMatrixWorld(true);
+    this.scene.traverse((object) => {
+      object.matrixAutoUpdate = false;
+    });
+    this.scene.matrixAutoUpdate = true;
     agents.forEach((a) => this.addAgent(a));
     this.selection = new THREE.Mesh(
       new THREE.RingGeometry(0.66, 0.81, 32),
@@ -360,46 +381,89 @@ export class World {
       label.dataset.x = String(poi.position.x);
       label.dataset.z = String(poi.position.z);
       this.host.append(label);
+      this.placeLabels.push({
+        element: label,
+        position: new THREE.Vector3(poi.position.x, 0.4, poi.position.z - 0.8),
+      });
     }
     shadow(-10, -9, 5, 3);
     shadow(10, -8, 4.5, 3);
     shadow(13, 11, 2, 3);
   }
   private mergeStaticGeometry() {
-    // Batch immutable scenery by material; trees already use instancing.
-    const buckets = new Map<THREE.Material, THREE.Mesh[]>();
-    for (const object of [...this.scene.children]) {
+    // Vertex colours let differently coloured scenery share draw calls, including nested benches.
+    const painted = new THREE.MeshStandardMaterial({
+      color: '#ffffff',
+      vertexColors: true,
+      flatShading: true,
+      roughness: 0.95,
+    });
+    const buckets = new Map<
+      string,
+      { material: THREE.Material; meshes: THREE.Mesh[]; painted: boolean }
+    >();
+    this.scene.updateMatrixWorld(true);
+    this.scene.traverse((object) => {
       if (
         !(object instanceof THREE.Mesh) ||
         object instanceof THREE.InstancedMesh ||
         Array.isArray(object.material)
       )
-        continue;
-      const bucket = buckets.get(object.material) ?? [];
-      bucket.push(object);
-      buckets.set(object.material, bucket);
-    }
+        return;
+      const useColors =
+        object.material instanceof THREE.MeshStandardMaterial &&
+        !object.material.transparent;
+      const key = `${useColors ? 'painted' : object.material.uuid}:${object.castShadow}:${object.receiveShadow}`;
+      const bucket = buckets.get(key) ?? {
+        material: useColors ? painted : object.material,
+        meshes: [] as THREE.Mesh[],
+        painted: useColors,
+      };
+      bucket.meshes.push(object);
+      buckets.set(key, bucket);
+    });
     const originals = new Set<THREE.BufferGeometry>();
-    for (const [mat, meshes] of buckets) {
+    for (const {
+      material: mat,
+      meshes,
+      painted: useColors,
+    } of buckets.values()) {
       const geometries = meshes.map((mesh) => {
-        mesh.updateMatrix();
-        originals.add(mesh.geometry);
         const geometry = mesh.geometry.index
           ? mesh.geometry.toNonIndexed()
           : mesh.geometry.clone();
         geometry.deleteAttribute('uv');
-        return geometry.applyMatrix4(mesh.matrix);
+        if (useColors) {
+          const color = (mesh.material as THREE.MeshStandardMaterial).color;
+          const colors = new Float32Array(
+            geometry.getAttribute('position').count * 3,
+          );
+          for (let i = 0; i < colors.length; i += 3) {
+            colors[i] = color.r;
+            colors[i + 1] = color.g;
+            colors[i + 2] = color.b;
+          }
+          geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        }
+        return geometry.applyMatrix4(mesh.matrixWorld);
       });
       const merged = mergeGeometries(geometries, false);
       if (merged) {
         const mesh = new THREE.Mesh(merged, mat);
         mesh.castShadow = meshes.some((m) => m.castShadow);
-        mesh.receiveShadow = true;
+        mesh.receiveShadow = meshes[0].receiveShadow;
         this.scene.add(mesh);
-        meshes.forEach((m) => this.scene.remove(m));
+        meshes.forEach((m) => {
+          originals.add(m.geometry);
+          m.removeFromParent();
+        });
       }
       geometries.forEach((g) => g.dispose());
     }
+    // Do not dispose geometry still referenced by an unmerged mesh.
+    this.scene.traverse((object) => {
+      if (object instanceof THREE.Mesh) originals.delete(object.geometry);
+    });
     originals.forEach((g) => g.dispose());
   }
   private building(
@@ -507,12 +571,20 @@ export class World {
     this.box(0.06, 0.07, 0.03, '#394c42', -0.11, 1.72, 0.29, group);
     this.box(0.06, 0.07, 0.03, '#394c42', 0.11, 1.72, 0.29, group);
     this.box(0.42, 0.48, 0.18, '#6d7565', 0, 1.05, -0.27, group);
-    const legs = [-1, 1].map((side) =>
-      this.box(0.22, 0.52, 0.24, '#526157', side * 0.18, 0.4, 0, group),
-    );
-    [-1, 1].forEach((side) => {
-      this.box(0.2, 0.62, 0.25, agent.color, side * 0.45, 1.02, 0, group);
-      this.box(0.24, 0.13, 0.35, '#3c4d43', side * 0.18, 0.14, 0.07, group);
+    const legs = [-1, 1].map((side) => {
+      const hip = new THREE.Group();
+      hip.position.set(side * 0.18, 0.66, 0);
+      this.box(0.22, 0.52, 0.24, '#526157', 0, -0.26, 0, hip);
+      this.box(0.24, 0.13, 0.35, '#3c4d43', 0, -0.52, 0.07, hip);
+      group.add(hip);
+      return hip;
+    });
+    const arms = [-1, 1].map((side) => {
+      const shoulder = new THREE.Group();
+      shoulder.position.set(side * 0.45, 1.33, 0);
+      this.box(0.2, 0.62, 0.25, agent.color, 0, -0.31, 0, shoulder);
+      group.add(shoulder);
+      return shoulder;
     });
     // Invisible hit area makes small characters easy to tap on a phone.
     const hit = new THREE.Mesh(
@@ -525,7 +597,8 @@ export class World {
     this.pickTargets.push(hit);
     this.scene.add(group);
     this.meshes.set(agent.id, group);
-    this.legPairs.set(agent.id, legs);
+    this.limbs.set(agent.id, { legs, arms });
+    this.motions.set(agent.id, new AgentMotion(agent));
     const label = document.createElement('button');
     label.className = 'agent-label';
     label.textContent = agent.name;
@@ -591,8 +664,8 @@ export class World {
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
   private resize() {
-    const w = this.host.clientWidth,
-      h = this.host.clientHeight;
+    const w = (this.width = this.host.clientWidth),
+      h = (this.height = this.host.clientHeight);
     if (!w || !h) return;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -617,6 +690,7 @@ export class World {
     this.camera.position.copy(this.controls.target).add(offset);
   }
   resetCamera() {
+    this.zoomDistance = null;
     // Consume residual gesture damping before restoring a predictable view.
     this.controls.enableDamping = false;
     this.controls.update();
@@ -626,73 +700,132 @@ export class World {
     this.controls.enableDamping = true;
   }
   zoom(factor: number) {
-    const offset = this.camera.position.clone().sub(this.controls.target);
-    offset
-      .multiplyScalar(factor)
-      .clampLength(this.controls.minDistance, this.controls.maxDistance);
-    this.camera.position.copy(this.controls.target).add(offset);
-    this.controls.update();
+    this.zoomDistance = THREE.MathUtils.clamp(
+      (this.zoomDistance ??
+        this.camera.position.distanceTo(this.controls.target)) * factor,
+      this.controls.minDistance,
+      this.controls.maxDistance,
+    );
   }
-  render(agents: AgentState[], elapsed: number) {
+  capture(agents: AgentState[]) {
+    for (const a of agents) this.motions.get(a.id)!.capture(a);
+  }
+  get visible() {
+    return this.width > 0 && this.height > 0;
+  }
+  render(
+    agents: AgentState[],
+    elapsed: number,
+    alpha: number,
+    seconds: number,
+    paused: boolean,
+  ) {
+    this.controls.dampingFactor = 1 - Math.exp(-14 * seconds);
+    if (this.zoomDistance !== null) {
+      const offset = this.projection
+        .copy(this.camera.position)
+        .sub(this.controls.target);
+      const distance = THREE.MathUtils.lerp(
+        offset.length(),
+        this.zoomDistance,
+        1 - Math.exp(-16 * seconds),
+      );
+      offset.setLength(distance);
+      this.camera.position.copy(this.controls.target).add(offset);
+      if (Math.abs(distance - this.zoomDistance) < 0.01)
+        this.zoomDistance = null;
+    }
     this.controls.update();
+    this.camera.updateMatrixWorld();
     for (const a of agents) {
       const mesh = this.meshes.get(a.id)!;
-      mesh.position.set(a.position.x, 0, a.position.z);
-      mesh.rotation.y = a.heading;
-      const walking = a.state === 'moving';
-      mesh.position.y = walking ? Math.sin(elapsed * 10) * 0.025 : 0;
-      this.legPairs.get(a.id)!.forEach((leg, i) => {
-        leg.rotation.x = walking
-          ? Math.sin(elapsed * 10 + i * Math.PI) * 0.4
-          : 0;
+      const motion = this.motions
+        .get(a.id)!
+        .sample(a, alpha, paused ? 0 : seconds);
+      const bob = Math.abs(Math.sin(motion.phase)) * 0.035 * motion.gait;
+      const breath =
+        Math.sin(elapsed * 2 + a.name.charCodeAt(0)) *
+        0.008 *
+        (1 - motion.gait);
+      mesh.position.set(motion.x, bob + breath, motion.z);
+      mesh.rotation.y = motion.heading;
+      const swing = Math.sin(motion.phase) * motion.gait;
+      const limbs = this.limbs.get(a.id)!;
+      limbs.legs.forEach((leg, i) => {
+        leg.rotation.x = (i ? -1 : 1) * swing * 0.5;
+      });
+      limbs.arms.forEach((arm, i) => {
+        arm.rotation.x = (i ? 1 : -1) * swing * 0.35;
       });
       const label = this.labels.get(a.id)!;
       label.classList.toggle('selected', a.id === this.selected);
       label.classList.toggle('speaking', a.state === 'talking');
-      this.project(label, new THREE.Vector3(a.position.x, 2.7, a.position.z));
+      this.project(label, motion.x, 2.7, motion.z);
     }
     const selected = agents.find((a) => a.id === this.selected)!;
-    this.selection.position.x = selected.position.x;
-    this.selection.position.z = selected.position.z;
-    const routePoints = [selected.position, ...selected.path].map(
-      (p) => new THREE.Vector3(p.x, 0.2, p.z),
-    );
-    const key =
-      this.selected + ':' + selected.path.map((p) => `${p.x},${p.z}`).join(';');
-    if (key !== this.routeKey) {
+    const pose = this.motions.get(selected.id)!;
+    this.selection.position.x = pose.x;
+    this.selection.position.z = pose.z;
+    if (
+      this.routePath !== selected.path ||
+      this.routeLength !== selected.path.length
+    ) {
+      const routePoints = [
+        new THREE.Vector3(pose.x, 0.2, pose.z),
+        ...selected.path.map((p) => new THREE.Vector3(p.x, 0.2, p.z)),
+      ];
       this.route.geometry.dispose();
       this.route.geometry = new THREE.BufferGeometry().setFromPoints(
         routePoints,
       );
-      this.routeKey = key;
+      (
+        this.route.geometry.getAttribute('position') as THREE.BufferAttribute
+      ).setUsage(THREE.DynamicDrawUsage);
+      this.route.computeLineDistances();
+      (
+        this.route.geometry.getAttribute(
+          'lineDistance',
+        ) as THREE.BufferAttribute
+      ).setUsage(THREE.DynamicDrawUsage);
+      this.routePath = selected.path;
+      this.routeLength = selected.path.length;
+      // Only the first vertex moves; bounds must not lag behind it.
+      this.route.frustumCulled = false;
     } else {
       const positions = this.route.geometry.getAttribute('position');
       if (positions) {
-        positions.setXYZ(0, selected.position.x, 0.2, selected.position.z);
+        positions.setXYZ(0, pose.x, 0.2, pose.z);
         positions.needsUpdate = true;
       }
     }
     this.route.visible = selected.path.length > 0;
-    this.route.computeLineDistances();
-    this.host.querySelectorAll<HTMLElement>('.place-label').forEach((label) => {
-      this.project(
-        label,
-        new THREE.Vector3(
-          Number(label.dataset.x),
-          0.4,
-          Number(label.dataset.z) - 0.8,
-        ),
-      );
-    });
+    if (this.route.visible) {
+      const positions = this.route.geometry.getAttribute('position');
+      const distances = this.route.geometry.getAttribute('lineDistance');
+      distances.setX(0, 0);
+      for (let i = 1; i < positions.count; i++) {
+        distances.setX(
+          i,
+          distances.getX(i - 1) +
+            Math.hypot(
+              positions.getX(i) - positions.getX(i - 1),
+              positions.getZ(i) - positions.getZ(i - 1),
+            ),
+        );
+      }
+      distances.needsUpdate = true;
+    }
+    for (const { element, position } of this.placeLabels)
+      this.project(element, position.x, position.y, position.z);
     this.renderer.render(this.scene, this.camera);
   }
-  private project(label: HTMLElement, position: THREE.Vector3) {
-    const p = position.project(this.camera);
+  private project(label: HTMLElement, x: number, y: number, z: number) {
+    const p = this.projection.set(x, y, z).project(this.camera);
     const visible =
       p.z > -1 && p.z < 1 && Math.abs(p.x) < 1 && Math.abs(p.y) < 1;
-    label.hidden = !visible;
-    label.style.left = `${(p.x * 0.5 + 0.5) * this.host.clientWidth}px`;
-    label.style.top = `${(-p.y * 0.5 + 0.5) * this.host.clientHeight}px`;
+    if (label.hidden === visible) label.hidden = !visible;
+    if (visible)
+      label.style.transform = `translate3d(${((p.x * 0.5 + 0.5) * this.width).toFixed(1)}px, ${((-p.y * 0.5 + 0.5) * this.height).toFixed(1)}px, 0) translate(-50%, -100%)`;
   }
   get stats() {
     return {
@@ -716,6 +849,7 @@ export class World {
       }
     });
     geometries.forEach((g) => g.dispose());
+    this.materials.forEach((m) => materials.add(m));
     materials.forEach((m) => m.dispose());
   }
 }

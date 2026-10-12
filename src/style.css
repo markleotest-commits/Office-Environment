@@ -578,6 +578,9 @@ button:disabled {
 .agent-label,
 .place-label {
   position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
   transform: translate(-50%, -100%);
   z-index: 1;
   white-space: nowrap;

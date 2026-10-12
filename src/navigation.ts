@@ -38,6 +38,7 @@ export function segmentWalkable(a: Vec2, b: Vec2): boolean {
 // A bounded grid keeps models and user-directed movement out of buildings and water.
 export function findPath(start: Vec2, target: Vec2): Vec2[] | null {
   if (!walkable(start) || !walkable(target)) return null;
+  if (segmentWalkable(start, target)) return [{ ...target }];
   const origin = { x: Math.round(start.x), z: Math.round(start.z) };
   const goal = { x: Math.round(target.x), z: Math.round(target.z) };
   if (!segmentWalkable(start, origin) || !segmentWalkable(goal, target))
@@ -57,7 +58,20 @@ export function findPath(start: Vec2, target: Vec2): Vec2[] | null {
         path.unshift(parents.get(key(path[0]))!);
       // Keep the rounded origin: a direct diagonal from a fractional start could clip a corner.
       path.push({ ...target });
-      return path;
+      // Skip grid stair-steps only where the entire shortcut clears obstacles.
+      const smooth: Vec2[] = [];
+      let anchor = start,
+        next = 0;
+      while (next < path.length) {
+        let furthest = path.length - 1;
+        while (furthest > next && !segmentWalkable(anchor, path[furthest]))
+          furthest--;
+        if (distance(anchor, path[furthest]) > 0.0001)
+          smooth.push(path[furthest]);
+        anchor = path[furthest];
+        next = furthest + 1;
+      }
+      return smooth;
     }
     for (let x = -1; x <= 1; x++)
       for (let z = -1; z <= 1; z++) {

@@ -121,11 +121,16 @@ document.getElementById('reset-confirm')!.addEventListener('click', () => {
 });
 let lastTime = performance.now(),
   renderAt = 0,
+  lastDraw = lastTime,
   uiAt = 0,
   fpsAt = performance.now(),
   frames = 0;
 let autosaveAt = performance.now(),
   accumulator = 0;
+const modelsDialog = document.getElementById(
+  'models-dialog',
+) as HTMLDialogElement;
+const frameInterval = 1000 / 60;
 function frame(now: number) {
   requestAnimationFrame(frame);
   if (document.hidden) {
@@ -137,17 +142,35 @@ function frame(now: number) {
   lastTime = now;
   accumulator += delta;
   while (accumulator >= 0.05) {
+    world?.capture(simulation.agents);
     simulation.tick(0.05);
     accumulator -= 0.05;
   }
   // Leave GPU capacity for models while their dialog covers the world.
-  const modelsOpen = (
-    document.getElementById('models-dialog') as HTMLDialogElement
-  ).open;
-  // Rendering is capped at 30 fps; logic runs at 20 Hz independently.
-  if (world && !modelsOpen && now - renderAt >= 1000 / 30 - 1) {
-    world.render(simulation.agents, simulation.clock.elapsed);
-    renderAt = now;
+  // Interpolate the 20 Hz simulation at up to 60 Hz. Carry scheduling remainder
+  // so 90/120 Hz displays do not fall into the old uneven frame-skipping pattern.
+  if (
+    world?.visible &&
+    !modelsDialog.open &&
+    now - renderAt >= frameInterval - 0.5
+  ) {
+    const alpha = simulation.clock.paused ? 1 : accumulator / 0.05;
+    const visualTime = Math.max(
+      0,
+      simulation.clock.elapsed -
+        (simulation.clock.paused
+          ? 0
+          : (0.05 - accumulator) * simulation.clock.speed),
+    );
+    world.render(
+      simulation.agents,
+      visualTime,
+      alpha,
+      Math.min(0.1, (now - lastDraw) / 1000),
+      simulation.clock.paused,
+    );
+    renderAt = now - ((now - renderAt) % frameInterval);
+    lastDraw = now;
     frames++;
   }
   if (now - uiAt > 250) {
@@ -173,6 +196,7 @@ requestAnimationFrame(frame);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) save(false);
   lastTime = performance.now();
+  lastDraw = lastTime;
   fpsAt = lastTime;
   frames = 0;
   accumulator = 0;
